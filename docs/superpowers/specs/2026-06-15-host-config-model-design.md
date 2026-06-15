@@ -176,9 +176,9 @@ Auth policy is **identity-level** in v1, enforced by iOS via `SecAccessControl`:
 
 Host-level confirmation ("always prompt before connecting to this host even if the key is unlocked") is deferred to v1.5.
 
-#### Inline mint during host creation
+#### Inline create during host creation
 
-The host create flow can mint a new `Identity` inline — the user does not need to visit "Identities & Keys" first. The identity still lands in the central Identity store and is referenced by UUID; the host record carries only the reference. "Identities & Keys" becomes the management surface (rotation, audit "which hosts use this key?", deletion), not the daily path.
+The host create flow can create a new `Identity` inline — the user does not need to visit "Identities & Keys" first. The identity still lands in the central Identity store and is referenced by UUID; the host record carries only the reference. "Identities & Keys" becomes the management surface (rotation, audit "which hosts use this key?", deletion), not the daily path.
 
 ## Resolution & fallbacks
 
@@ -228,7 +228,7 @@ Resolution order for any optional field on `Host`:
 
 ### Out of scope for *this* spec (separate brainstorm sessions to come)
 
-- **Host CRUD flow** — create/edit/delete UI, validation rules, import from `~/.ssh/config`, export, error states, the duplicate-label warning UX, the jumphost-in-use deletion message UX, the inline-mint-an-identity wizard.
+- **Host CRUD flow** — create/edit/delete UI, validation rules, import from `~/.ssh/config`, export, error states, the duplicate-label warning UX, the jumphost-in-use deletion message UX, the inline-create-an-identity wizard.
 - **Multi-connection switching semantics** — what happens to a foreground SSH/mosh connection when the user switches to another host: tmux session lifecycle, mosh heartbeat budget in iOS background, SSH background-grace duration, when "Live" rows demote to "Recent" automatically.
 
 ### Deferred to v1.5+ (additive schema changes, do not break v1 records)

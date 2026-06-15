@@ -1,12 +1,12 @@
 # Host CRUD flow — design
 
-> **Scope.** Create / edit / delete screens for host records and the Defaults record. Includes form layout, validation, conditional-field behavior, the inline identity sub-flow (pick / mint / import), and delete behavior including the refused-if-referenced case.
+> **Scope.** Create / edit / delete screens for host records and the Defaults record. Includes form layout, validation, conditional-field behavior, the inline identity sub-flow (pick / create / import), and delete behavior including the refused-if-referenced case.
 >
 > **Out of scope** (separate brainstorm sessions): import from `~/.ssh/config`, export to `~/.ssh/config`, multi-connection switching semantics, the management surface for Identities & Keys outside of the inline sub-flow, and the ssh-copy-id auto-install flow.
 >
 > Assumes the host config schema (`docs/superpowers/specs/2026-06-15-host-config-model-design.md`) and the host-management entry point (`docs/brainstorming-decisions.md` → "Host management & settings access").
 >
-> **Mockup:** `mockups/host-crud.html` (form layout, conditional disabling, identity sub-flow, validation banners, defaults editor).
+> **Mockup:** `mockups/specs/host-crud.html` (form layout, conditional disabling, identity sub-flow, validation banners, defaults editor).
 
 ## Design principles
 
@@ -14,7 +14,7 @@
 2. **Sections own their own conditional behavior.** Mosh and Tailscale are named sections, not buried under Advanced — that's how users mentally model them ("does this host use mosh?" is a yes/no thought).
 3. **Show + explain, never silently hide.** When a field is contextually irrelevant (e.g., `serverAliveInterval` under mosh), it stays visible, disabled, with a one-line tooltip explaining why. Conditional caveats surface as inline banners under their section header.
 4. **Same form, different presentation, for both entry points.** Quick-edit (swipe from picker → Edit) and deep-edit (Settings → Hosts → tap) use the same fields, the same validation, the same default-expansion logic — but quick-edit presents as a half-sheet, deep-edit as full-screen push.
-5. **Inline identity sub-flow.** The user never has to leave the host form to pick, mint, or import a key.
+5. **Inline identity sub-flow.** The user never has to leave the host form to pick, create, or import a key.
 
 ## Form layout
 
@@ -77,7 +77,7 @@ List of every stored Identity. Each row:
 
 Tap to select → returns to host form with the identity added to the pill row.
 
-### Tab 2 — Mint new
+### Tab 2 — Create new
 
 Fields:
 - **Display name** (text, required, soft-unique)
@@ -87,7 +87,7 @@ Fields:
 
 On **Create**:
 1. The key is generated in the chosen flavor with the chosen policy applied via `SecAccessControl`.
-2. The sheet transitions to a **post-mint view** showing the **public key** as monospaced text, with **Copy** / **Share** / **AirDrop** buttons. User installs it on the host's `~/.ssh/authorized_keys` manually. (Auto-install via ssh-copy-id is deferred to v1.5.)
+2. The sheet transitions to a **post-create view** showing the **public key** as monospaced text, with **Copy** / **Share** / **AirDrop** buttons. User installs it on the host's `~/.ssh/authorized_keys` manually. (Auto-install via ssh-copy-id is deferred to v1.5.)
 3. **Done** dismisses the sheet; the new identity is added to the host form's pill row.
 
 ### Tab 3 — Import existing
@@ -96,13 +96,13 @@ Fields:
 - **Display name** (text, required)
 - **Private key** (multi-line text — paste a PEM, OpenSSH, or RSA block; can also use the iOS share sheet or document picker)
 - **Passphrase** (only revealed if the parsed key is encrypted)
-- **Storage flavor** (segmented, same as Mint)
-- **Biometric policy** (segmented, same as Mint)
+- **Storage flavor** (segmented, same as Create)
+- **Biometric policy** (segmented, same as Create)
 
 On **Import**:
 1. Glymr parses the blob; if parsing fails, inline error: *"Unrecognized key format. Supported: OpenSSH, PEM, RFC 4716."*
 2. If encrypted, the passphrase field unlocks; on wrong passphrase, inline error.
-3. On success, the key material is written to the chosen flavor with the chosen policy; the sheet transitions to the same post-mint view (public key + Copy/Share). User installs it on the host manually.
+3. On success, the key material is written to the chosen flavor with the chosen policy; the sheet transitions to the same post-create view (public key + Copy/Share). User installs it on the host manually.
 
 ## Validation
 
@@ -208,7 +208,7 @@ Entry points:
 
 ### Deferred to v1.5+
 
-- **ssh-copy-id auto-install** — after mint, offer to install the public key on the host via a one-time password-auth connection.
+- **ssh-copy-id auto-install** — after create, offer to install the public key on the host via a one-time password-auth connection.
 - **Auto-draft persistence** for unsaved forms — survive force-quit / memory pressure.
 - **Bulk operations** — multi-select in Settings → Hosts for bulk delete / bulk edit (e.g., reassign identity across many hosts).
 - **Field-level edit history / undo** — track recent changes per host, surface a per-field undo.
