@@ -82,25 +82,26 @@ The keybar is now structured as **locked left section + horizontally scrollable 
 
 ### Locked region (never moves, never scrolls)
 
+**Superseded by `2026-06-15-keybar-customization-design.md`.** Default locked-left is now:
+
 | Slot | Item |
 |---|---|
-| 1 | window pill |
-| 2 | pane pill |
-| 3 | arrow-pad (Blink-style drag) |
-| 4 | Esc |
+| 1 | Esc pill (fused — Esc keystroke + window navigation + unified picker) |
+| 2 | Pad (fused — arrow drag + pane management) |
+| 3 | Modifier (Ctrl/Alt/Shift combined) |
+| 4 | Tab |
 
-The "you'll lose your mind if these aren't always visible" set. Pills carry their existing locked gestures; arrows and Esc are the highest-frequency standalone keys.
+Esc pill and Pad are constrained to the locked region; Modifier and Tab can be moved to scroll via Settings → Keybar.
 
 ### Scrollable region (horizontal pan)
 
-Order, left to right:
+**Superseded by `2026-06-15-keybar-customization-design.md`.** Default rest position, left to right:
 
-1. **Ctrl/Alt/Shift** (combined modifier slot, sticky-for-one-keystroke)
-2. **Tab**
-3. **Promotions** — zero or more bronze-tinted slots from the engaged context's promotion set, in the order the set declares them
-4. **Defaults** — `/`, `\|`, `~`, `-`, `(`, `)` (or whatever the user has customized for convenience defaults)
+1. **Promotions** — zero or more bronze-tinted slots from the engaged context's promotion set, in the order the set declares them
+2. **Defaults** — `/`, `\|`, `~`, `-`, `(`, `)` (user-customizable)
+3. **Fn** — function-keys toggle
 
-Promotions land directly after Tab. Defaults push right; they remain reachable via horizontal pan. The right edge of the bar carries a faint fade indicating scrollability.
+Promotions land directly after the locked region. Defaults and Fn push right; they remain reachable via horizontal pan. The right edge of the bar carries a faint fade indicating scrollability.
 
 ### Promoted slot visual
 

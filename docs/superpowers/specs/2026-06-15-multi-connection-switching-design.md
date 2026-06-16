@@ -62,7 +62,7 @@ The defining distinction is: **Awake = "client still has resources for it"** (so
 
 ### Foreground → background
 
-When the app moves to background, Glymr calls `UIApplication.beginBackgroundTask` to receive iOS's standard background-execution window (~30s, OS-dependent). We do **not** attempt to use that window for special heroics; this is the same facility every iOS app gets, used here just so the app's own bookkeeping (state save, audit log flush) completes cleanly.
+When the app moves to background, Glymr calls `UIApplication.beginBackgroundTask` to receive iOS's standard background-execution window (~30s, OS-dependent). We do **not** attempt to use that window for special heroics; this is the same facility every iOS app gets, used here just so the app's own bookkeeping (state save, pending sync writes) completes cleanly.
 
 During the background-task window:
 - All sockets remain technically open. The user could foreground within a few seconds and find everything as they left it.
@@ -176,7 +176,7 @@ For users on the default `afterUnlock` policy (expected to be the vast majority)
 - **Live Activities** for Dynamic Island background presence — out of scope for v1; the per-connection state model is designed so an Activity could feed off it later (especially for backgrounded mosh that's still receiving notable events).
 - **Per-host overrides for cap behavior** — pinning a connection so it can never be LRU-demoted is an interesting power-user request; defer until/unless real usage shows the soft cap biting users.
 - **Cross-host snippet / launcher state** — out of scope here; the launcher does not currently expose per-host history. When it does, the question of whether sleeping connections contribute to it will need its own decision.
-- **Audit log entries for state transitions** — the audit log (locked as local-only in the storage backbone) should capture meaningful lifecycle events. Concrete schema deferred until the audit-log surface itself is designed.
+- ~~**Audit log entries for state transitions**~~ — audit log dropped from v1 in `2026-06-16-icloud-sync-scope-design.md`. No schema needed. The code-level stub for a future Pro audit log would emit lifecycle events as no-op hooks in v1.
 
 ## Acceptance summary
 

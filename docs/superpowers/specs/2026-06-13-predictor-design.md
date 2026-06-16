@@ -54,7 +54,7 @@ Storage format: each sketch is a serialized binary blob.
 
 - Path: `Library/Application Support/glymr/predictor/`
 - File protection: `NSFileProtectionComplete` — encrypted at rest by iOS, decryptable only when device is unlocked, key derived from the Secure Enclave.
-- `NSURLIsExcludedFromBackup = true` — predictor data is **not** included in iCloud backups by default. Cross-device sync is a separate opt-in (deferred).
+- Sketches sync via CloudKit Private DB + client-side AES-256-GCM (default ON, opt-out per device in Settings → App preferences → Predictor). Justified by CMS/Bloom's structural lossiness: the synced data is a frequency fingerprint, not recoverable text. See `2026-06-16-icloud-sync-scope-design.md` for the full revision rationale.
 - Structure:
   - SQLite for metadata: token strings, host index, retention settings, opt-out rules.
   - Binary blobs for sketches: one blob per sketch per time window.
@@ -272,7 +272,7 @@ The predictor's substrate (CMS, Bloom, daily versioning) supports more than basi
 
 ## Deferred questions
 
-- **iCloud sync of learned sketches** — cross-device vocabulary sync. CMS merges cleanly across devices (pointwise add), so the math is easy. Defer the UX (opt-in flow, conflict resolution, encryption-in-transit).
+- ~~**iCloud sync of learned sketches**~~ — **Locked in `2026-06-16-icloud-sync-scope-design.md`**: sync via CloudKit + client-side AES, default ON, opt-out per device. Snapshot time-travel (rolling back to a prior sealed daily) remains deferred to v1.5+.
 - **Per-host vocabulary scoping** — currently Glymr-wide. Per-host internal sharding (for time-of-day patterns above) lays groundwork. Promoting host-level scope to user-visible setting is a v1.5 question.
 - **Community seed contribution pipeline** — open-source script, anonymization rigor, contribution moderation.
 - **Tuning of `seed_weight`, `confidence_floor`, `top_k`** — defaults are starting points. Need empirical tuning once Glymr has real users.

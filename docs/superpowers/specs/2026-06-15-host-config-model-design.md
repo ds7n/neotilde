@@ -22,7 +22,7 @@
 | **iCloud Keychain** | SSH keys (default flavor), passwords, passphrases, `known_hosts` entries, the AES key used to encrypt CloudKit records | End-to-end encrypted by Apple; syncs across the user's Apple-ID devices |
 | **Secure Enclave** | "Enhanced" device-bound identities (opt-in at key creation) | Hardware-bound; cannot leave the device; does not sync |
 | **CloudKit Private DB + client-side AES-256-GCM** | Host records, the singleton Defaults record, Identity *metadata* (display name, fingerprint, flags) | Records are AES-256-GCM ciphertext when written; the 32-byte key lives in iCloud Keychain → effective E2EE regardless of ADP setting |
-| **Local only (never sync)** | Audit log, recent-connections list, live session state | Local file storage + standard iOS data protection |
+| **Local only (never sync)** | Recent-connections list, live session state | Local file storage + standard iOS data protection. (Audit log originally listed here; dropped from v1 in `2026-06-16-icloud-sync-scope-design.md`. Code-level stub reserved for a future Pro feature.) |
 
 Identity *private key material* always lives in Keychain or SE — never in CloudKit. Identity metadata in CloudKit only references private material by UUID.
 
