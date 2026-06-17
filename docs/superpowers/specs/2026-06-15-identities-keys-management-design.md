@@ -258,7 +258,7 @@ No Share Extension in v1.
 1. **Detected** (read-only) — algorithm and fingerprint, parsed from the blob.
 2. **Display name** — required, free-form. Pre-filled from a filename hint when available (e.g., `id_ed25519` → `id_ed25519`).
 3. **Auth policy** — three-segment, default `Per-unlock`.
-4. **Passphrase** (only shown if the parsed key is encrypted) — secure entry field with a `Decrypt` action. The passphrase is consumed when the key is rewritten into Keychain and **discarded**; it is not retained anywhere.
+4. **Passphrase** (only shown if the parsed key is encrypted) — secure entry field with a `Decrypt` action. The passphrase is consumed when the key is rewritten into Keychain and **discarded immediately after decrypt**; it is not retained anywhere, not cached for the session, not re-prompted at use time. The Keychain-stored key material is itself encrypted at rest by iOS data protection; the iCloud Keychain copy is decrypted-equivalent only when the user's iCloud account is authenticated and the device is unlocked. No persistent passphrase state survives the import step.
 
 **Storage flavor is absent.** Imported keys are always `iCloudKeychain` — Secure Enclave by definition cannot accept external key material. A muted explainer at the bottom of the form makes this explicit:
 

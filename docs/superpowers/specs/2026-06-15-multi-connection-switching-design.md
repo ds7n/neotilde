@@ -112,7 +112,7 @@ When waking a sleeping mosh connection:
 
 1. Attempt to resume from the cached mosh-server endpoint + key. If the server still holds the session, frames resume and the row transitions Sleeping → Active. This is the cheap, common path.
 2. If resume fails (server-side timeout fired, server rebooted, port mapping changed), fall through transparently to a fresh mosh bootstrap: SSH to the host, run `mosh-server new`, capture the new key + port, switch the mosh client to it. The user sees one "waking…" indicator that resolves to Active — they are not informed *which* path succeeded.
-3. If the fresh bootstrap also fails (host unreachable, auth changed, mosh-server binary missing), the row demotes to Recent and the standard amber/red banner explains the failure. The user can tap the Recent row to retry, which becomes a clean + Connect flow.
+3. If the fresh bootstrap also fails, the row demotes to Recent and the standard amber/red banner explains the failure. The user can tap the Recent row to retry, which becomes a clean + Connect flow. Failure messages are specific where possible: **"`mosh-server` not found on host"** when the SSH-side bootstrap shell can't locate the binary (a common mosh-newbie surprise that deserves a tailored line rather than "host unreachable"), **"Authentication changed"** when SSH re-auth is now refused, and the generic "Host unreachable" otherwise.
 
 ### Mosh + Tailscale interaction
 
