@@ -2,16 +2,17 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Stand up the Glymr workspace, prove the Rust→Swift toolchain end-to-end, and build the three pure-Swift foundations every later phase depends on: the design-token layer, the core data model, and the at-rest encryption envelope.
+**Goal:** Stand up the Glymr workspace, prove the Rust→Swift toolchain end-to-end, and build the three foundations every later phase depends on: the design-token layer, the core data model, and the at-rest encryption envelope.
 
-**Architecture:** A Cargo workspace holds the Rust SSH core crate (`glymr-ssh-core`), exported to Swift through a UniFFI-generated XCFramework. A SwiftPM package (`GlymrKit`) holds pure-Swift foundations (tokens, model, crypto) and depends on the generated `GlymrSSHCoreFFI` package. No app UI yet — every deliverable is exercised by `swift test` or `cargo test`.
+**Architecture:** A Cargo workspace holds the Rust SSH core crate (`glymr-ssh-core`), exported to Swift through a UniFFI-generated XCFramework. A SwiftPM package (`GlymrKit`) holds the pure-Swift foundations (tokens, model, crypto). The work is split into a **platform-agnostic tier** (Rust core logic, data model, crypto envelope via Apple's `swift-crypto`, token *values*) that builds and tests on **Linux** for a fast TDD loop, and an **Apple-only tier** (the UniFFI XCFramework bridge, SwiftUI `Color`/environment) verified on **macOS CI** (GitHub Actions). `Package.swift` is host-conditional so the Linux loop never sees the iOS-only XCFramework.
 
-**Tech Stack:** Rust (stable, `uniffi` 0.31+), Swift 6 / SwiftPM, CryptoKit, `xcodebuild -create-xcframework`.
+**Tech Stack:** Rust (stable, `uniffi` 0.31+), Swift 6 / SwiftPM, CryptoKit on Apple / `swift-crypto` (`Crypto`) on Linux behind a `#if canImport(CryptoKit)` shim, `xcodebuild -create-xcframework`.
 
 ## Global Constraints
 
 - **Bridge:** UniFFI 0.31+, proc-macro scaffolding (`uniffi::setup_scaffolding!()`), no UDL file. Verbatim from roadmap.
 - **Rust crypto backend:** russh added in Phase 1; in Phase 0 the crate carries no SSH deps yet — keep it minimal so the toolchain proof is fast.
+- **Platform split:** logic stays in the agnostic tier and must compile + test on Linux. Crypto imports go behind `#if canImport(CryptoKit) … #else import Crypto #endif`; SwiftUI-touching code goes behind `#if canImport(SwiftUI)`. Keep the Apple-only surface thin.
 - **Colors:** UI/token code never inlines a hex literal outside a theme file's `private let` palette block. Palette constants verbatim from `design-tokens-design.md`.
 - **Schema fidelity:** field names are lowercase camelCase matching `ssh_config(5)` stems exactly (`hostName`, `proxyJump`, `serverAliveInterval`). Verbatim from `host-config-model-design.md`.
 - **Inheritance semantics:** `undefined` = inherit; `null`/`[]` = explicit "none." This distinction is baked in from day one (no later migration). Verbatim from `host-config-model-design.md`.
@@ -21,65 +22,59 @@
   // SPDX-License-Identifier: GPL-3.0-only
   ```
 - **Conventional commits**; squash-merge.
-- Toolchain: install Rust targets `aarch64-apple-ios`, `aarch64-apple-ios-sim`, `x86_64-apple-ios` before Task 1.
+- Toolchain: the Linux dev box needs the Swift toolchain + `cargo`. macOS CI additionally installs the Rust targets `aarch64-apple-ios`, `aarch64-apple-ios-sim`, `x86_64-apple-ios` before building the XCFramework (Task 1).
+
+---
+
+## Platform tiers — where each piece builds & tests
+
+| Tier | Tasks / files | Builds & tests on |
+|---|---|---|
+| **Agnostic (fast loop)** | Rust core `core_version()` (Task 1 Rust), data model (Task 3), `RecordEnvelope` via swift-crypto (Task 4), `ThemeColor`/`Theme` + `rgba()` (Task 2) | **Linux** (`cargo test` + `swift test`) *and* macOS |
+| **Apple-only (CI gate)** | UniFFI Swift bindings + XCFramework + `BridgeTests` (Task 1), SwiftUI `Color(ThemeColor)` + `EnvironmentValues.theme` (Task 2 `ThemeEnvironment.swift`) | **macOS CI only** (GitHub Actions) |
+
+Implication for the controller: on Linux you run `cargo test` and `swift test` (the latter resolves only the agnostic targets — see the host-conditional `Package.swift` in Task 1). The XCFramework build + `BridgeTests` + the SwiftUI-compile check are the macOS-CI job.
 
 ---
 
 ## File Structure
 
-| File | Responsibility |
-|---|---|
-| `Cargo.toml` | Workspace root |
-| `crates/glymr-ssh-core/Cargo.toml` | Rust core crate manifest (staticlib + UniFFI) |
-| `crates/glymr-ssh-core/src/lib.rs` | Rust exports (Phase 0: `core_version()` only) |
-| `scripts/build-xcframework.sh` | Build Rust for 3 iOS triples, gen Swift bindings, package XCFramework |
-| `Package.swift` | SwiftPM root — `GlymrKit` library + `GlymrSSHCoreFFI` binary target |
-| `Sources/GlymrKit/Theme/Theme.swift` | Semantic token types + `ThemeColor` |
-| `Sources/GlymrKit/Theme/BellBronzeTheme.swift` | The `bellBronze` theme (palette + token mapping) |
-| `Sources/GlymrKit/Theme/ThemeEnvironment.swift` | SwiftUI environment plumbing + `Color.theme` |
-| `Sources/GlymrKit/Model/Inherited.swift` | `Inherited<T>` (absent vs explicit-none vs value) |
-| `Sources/GlymrKit/Model/Host.swift` | `Host`, `Defaults`, `JumpHop`, forwards, `HostKey` |
-| `Sources/GlymrKit/Model/Identity.swift` | `Identity`, `IdentityRef`, flavor/policy enums |
-| `Sources/GlymrKit/Model/Resolution.swift` | Field resolution (host → Defaults → fallback) + cycle check |
-| `Sources/GlymrKit/Crypto/RecordEnvelope.swift` | AES-256-GCM seal/open for CloudKit records |
-| `Tests/GlymrKitTests/*` | One test file per source area |
+| File | Responsibility | Tier |
+|---|---|---|
+| `Cargo.toml` | Workspace root | agnostic |
+| `crates/glymr-ssh-core/Cargo.toml` | Rust core crate manifest (staticlib + UniFFI) | agnostic |
+| `crates/glymr-ssh-core/src/lib.rs` | Rust exports + unit test (Phase 0: `core_version()`) | agnostic |
+| `scripts/build-xcframework.sh` | Build Rust for 3 iOS triples, gen Swift bindings, package XCFramework | Apple-only |
+| `Package.swift` | SwiftPM root — `GlymrKit` always; FFI + binary + BridgeTests appended only `#if os(macOS)` | both |
+| `Sources/GlymrKit/Theme/Theme.swift` | `ThemeColor` (+ pure `rgba()`) + semantic token types — **no `import SwiftUI`** | agnostic |
+| `Sources/GlymrKit/Theme/BellBronzeTheme.swift` | The `bellBronze` theme (palette + token mapping) | agnostic |
+| `Sources/GlymrKit/Theme/ThemeEnvironment.swift` | SwiftUI `Color(ThemeColor)` + `EnvironmentValues.theme` — whole file `#if canImport(SwiftUI)` | Apple-only |
+| `Sources/GlymrKit/Model/Inherited.swift` | `Inherited<T>` (absent vs explicit-none vs value) | agnostic |
+| `Sources/GlymrKit/Model/Host.swift` | `Host`, `Defaults`, `JumpHop`, forwards, `HostKey` | agnostic |
+| `Sources/GlymrKit/Model/Identity.swift` | `Identity`, `IdentityRef`, flavor/policy enums | agnostic |
+| `Sources/GlymrKit/Model/Resolution.swift` | Field resolution (host → Defaults → fallback) + cycle check | agnostic |
+| `Sources/GlymrKit/Crypto/RecordEnvelope.swift` | AES-256-GCM seal/open (CryptoKit/swift-crypto shim) | agnostic |
+| `Sources/GlymrSSHCoreFFI/*` | Generated UniFFI Swift wrapper (created by the build script) | Apple-only |
+| `Tests/GlymrKitTests/*` | Theme / Model / RecordEnvelope tests | agnostic |
+| `Tests/BridgeTests/*` | `coreVersion()` bridge round-trip | Apple-only |
 
 ---
 
 ### Task 1: Rust core crate + UniFFI bridge (toolchain proof)
 
+The Rust logic is proven on Linux with `cargo test`; the Swift↔Rust bridge (XCFramework + `BridgeTests`) is the macOS-CI gate.
+
 **Files:**
-- Create: `Cargo.toml`, `crates/glymr-ssh-core/Cargo.toml`, `crates/glymr-ssh-core/src/lib.rs`
+- Create: `Cargo.toml`, `crates/glymr-ssh-core/Cargo.toml`, `crates/glymr-ssh-core/src/lib.rs`, `crates/glymr-ssh-core/src/bin/uniffi-bindgen.rs`
 - Create: `scripts/build-xcframework.sh`
 - Create: `Package.swift`
-- Test: `Tests/GlymrKitTests/BridgeTests.swift`
+- Test: `Tests/BridgeTests/BridgeTests.swift`
 
 **Interfaces:**
-- Produces (Rust): `pub fn core_version() -> String`
-- Produces (Swift, generated): `GlymrSSHCore.coreVersion() -> String` in module `GlymrSSHCoreFFI`
+- Produces (Rust): `pub fn core_version() -> String` (returns `"0.1.0"`, the crate version)
+- Produces (Swift, generated, Apple-only): `coreVersion() -> String` in module `GlymrSSHCoreFFI`
 
-- [ ] **Step 1: Write the failing Swift test**
-
-`Tests/GlymrKitTests/BridgeTests.swift`:
-```swift
-import XCTest
-import GlymrSSHCoreFFI
-
-final class BridgeTests: XCTestCase {
-    func testCoreVersionRoundTripsFromRust() {
-        // The Rust crate version is the single source of truth; the bridge
-        // must surface it verbatim to Swift, proving Rust→UniFFI→Swift works.
-        XCTAssertEqual(coreVersion(), "0.1.0")
-    }
-}
-```
-
-- [ ] **Step 2: Run the test to verify it fails**
-
-Run: `swift test --filter BridgeTests`
-Expected: FAIL — `no such module 'GlymrSSHCoreFFI'` (nothing built yet).
-
-- [ ] **Step 3: Create the Cargo workspace + core crate**
+- [ ] **Step 1: Scaffold the Cargo workspace + core crate**
 
 `Cargo.toml`:
 ```toml
@@ -107,10 +102,41 @@ name = "uniffi-bindgen"
 path = "src/bin/uniffi-bindgen.rs"
 ```
 
-`crates/glymr-ssh-core/src/lib.rs`:
+`crates/glymr-ssh-core/src/bin/uniffi-bindgen.rs`:
 ```rust
+// SPDX-FileCopyrightText: 2026 True Positive LLC
+// SPDX-License-Identifier: GPL-3.0-only
+fn main() {
+    uniffi::uniffi_bindgen_main()
+}
+```
+
+- [ ] **Step 2: Write the failing Rust unit test (Linux fast loop)**
+
+In `crates/glymr-ssh-core/src/lib.rs` (header + scaffolding + the test, no impl yet):
+```rust
+// SPDX-FileCopyrightText: 2026 True Positive LLC
+// SPDX-License-Identifier: GPL-3.0-only
 uniffi::setup_scaffolding!();
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn core_version_is_the_crate_version() {
+        assert_eq!(core_version(), "0.1.0");
+    }
+}
+```
+
+Run: `cargo test -p glymr-ssh-core`
+Expected: FAIL — `cannot find function 'core_version'`.
+
+- [ ] **Step 3: Implement `core_version` and watch the Rust test pass (Linux)**
+
+Add above the `#[cfg(test)]` module in `lib.rs`:
+```rust
 /// Returns the version string of the Glymr SSH core crate.
 ///
 /// Phase 0 uses this purely to prove the Rust→UniFFI→Swift toolchain end to end.
@@ -120,21 +146,55 @@ pub fn core_version() -> String {
 }
 ```
 
-`crates/glymr-ssh-core/src/bin/uniffi-bindgen.rs`:
-```rust
-fn main() {
-    uniffi::uniffi_bindgen_main()
-}
+Run: `cargo test -p glymr-ssh-core`
+Expected: PASS. **This is the Linux-verifiable proof of the Rust logic.**
+
+- [ ] **Step 4: Write the host-conditional SwiftPM manifest**
+
+`Package.swift` — `GlymrKit` (agnostic) always builds; the XCFramework bridge + `BridgeTests` are appended only when the host is macOS, so `swift test` resolves cleanly on Linux:
+```swift
+// swift-tools-version: 6.0
+import PackageDescription
+
+var targets: [Target] = [
+    .target(
+        name: "GlymrKit",
+        dependencies: [
+            // Linux uses swift-crypto's `Crypto`; Apple uses system CryptoKit (no dep).
+            .product(name: "Crypto", package: "swift-crypto",
+                     condition: .when(platforms: [.linux])),
+        ]
+    ),
+    .testTarget(name: "GlymrKitTests", dependencies: ["GlymrKit"]),
+]
+
+// The UniFFI XCFramework exists only on Apple platforms; never reference it on Linux.
+#if os(macOS)
+targets += [
+    .target(name: "GlymrSSHCoreFFI", dependencies: ["GlymrSSHCore"]),
+    .binaryTarget(name: "GlymrSSHCore", path: "GlymrSSHCore.xcframework"),
+    .testTarget(name: "BridgeTests", dependencies: ["GlymrSSHCoreFFI"]),
+]
+#endif
+
+let package = Package(
+    name: "Glymr",
+    platforms: [.iOS(.v17), .macOS(.v14)],
+    products: [.library(name: "GlymrKit", targets: ["GlymrKit"])],
+    dependencies: [
+        .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0"),
+    ],
+    targets: targets
+)
 ```
 
-- [ ] **Step 4: Write the XCFramework build script**
+- [ ] **Step 5: Write the XCFramework build script (macOS)**
 
 `scripts/build-xcframework.sh`:
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
 
-CRATE_DIR="crates/glymr-ssh-core"
 LIB_NAME="libglymr_ssh_core.a"
 BUILD_DIR="target/xcframework"
 OUT="GlymrSSHCore.xcframework"
@@ -182,59 +242,47 @@ echo "Built $OUT and copied Swift bindings to Sources/GlymrSSHCoreFFI/"
 
 Make it executable: `chmod +x scripts/build-xcframework.sh`
 
-- [ ] **Step 5: Create the SwiftPM manifest wiring the binary target**
+- [ ] **Step 6: Write the bridge test (Apple-only target)**
 
-`Package.swift`:
+`Tests/BridgeTests/BridgeTests.swift`:
 ```swift
-// swift-tools-version: 6.0
-import PackageDescription
+// SPDX-FileCopyrightText: 2026 True Positive LLC
+// SPDX-License-Identifier: GPL-3.0-only
+import XCTest
+import GlymrSSHCoreFFI
 
-let package = Package(
-    name: "Glymr",
-    platforms: [.iOS(.v17)],
-    products: [
-        .library(name: "GlymrKit", targets: ["GlymrKit"]),
-    ],
-    targets: [
-        // Generated UniFFI Swift wrapper; depends on the prebuilt XCFramework.
-        .target(
-            name: "GlymrSSHCoreFFI",
-            dependencies: ["GlymrSSHCore"]
-        ),
-        .binaryTarget(
-            name: "GlymrSSHCore",
-            path: "GlymrSSHCore.xcframework"
-        ),
-        .target(name: "GlymrKit", dependencies: ["GlymrSSHCoreFFI"]),
-        .testTarget(
-            name: "GlymrKitTests",
-            dependencies: ["GlymrKit", "GlymrSSHCoreFFI"]
-        ),
-    ]
-)
+final class BridgeTests: XCTestCase {
+    func testCoreVersionRoundTripsFromRust() {
+        // The Rust crate version is the single source of truth; the bridge
+        // must surface it verbatim to Swift, proving Rust→UniFFI→Swift works.
+        XCTAssertEqual(coreVersion(), "0.1.0")
+    }
+}
 ```
 
-- [ ] **Step 6: Build the bridge and run the test to verify it passes**
+- [ ] **Step 7: Build the bridge and run BridgeTests (macOS CI)**
 
-Run:
+On macOS:
 ```bash
 rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
 ./scripts/build-xcframework.sh
 swift test --filter BridgeTests
 ```
-Expected: PASS — `coreVersion()` returns `"0.1.0"`.
+Expected: PASS — `coreVersion()` returns `"0.1.0"`. (On Linux this target does not exist; the Rust test in Step 3 is the Linux-side proof.)
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add Cargo.toml crates scripts Package.swift Sources/GlymrSSHCoreFFI Tests GlymrSSHCore.xcframework .gitignore
-git commit -m "feat: scaffold Rust core + UniFFI bridge with toolchain proof"
+git add Cargo.toml crates scripts Package.swift Tests/BridgeTests .gitignore
+git commit -m "feat: scaffold Rust core + host-conditional UniFFI bridge with toolchain proof"
 ```
-(Add `target/` and `.build/` to `.gitignore` before committing.)
+(Add `target/`, `.build/`, and `GlymrSSHCore.xcframework` to `.gitignore` — the XCFramework is a CI build artifact, not source.)
 
 ---
 
 ### Task 2: Design-token layer
+
+Token *values* (`ThemeColor`, `Theme`, `bellBronze`) and the hex→RGBA math are agnostic (Linux-tested). Only the SwiftUI `Color`/environment bridge is Apple-only.
 
 **Files:**
 - Create: `Sources/GlymrKit/Theme/Theme.swift`
@@ -243,15 +291,17 @@ git commit -m "feat: scaffold Rust core + UniFFI bridge with toolchain proof"
 - Test: `Tests/GlymrKitTests/ThemeTests.swift`
 
 **Interfaces:**
-- Produces: `struct ThemeColor: Equatable { let hex: String; let opacity: Double; func alpha(_:) -> ThemeColor }`
+- Produces: `struct ThemeColor: Equatable { let hex: String; let opacity: Double; func alpha(_:) -> ThemeColor; func rgba() -> (red: Double, green: Double, blue: Double, opacity: Double) }`
 - Produces: `struct Theme` with groups `surface`, `text`, `accent`, `state`, `bell`, `focus`, `keybar`, `predictor`, `banner`, `terminal`
 - Produces: `Theme.bellBronze`, `Theme.all: [Theme]`
-- Produces: `EnvironmentValues.theme`, `Color.theme` accessor
+- Produces (Apple-only): `EnvironmentValues.theme`, `Color(_:ThemeColor)`
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Write the failing tests (Linux)**
 
 `Tests/GlymrKitTests/ThemeTests.swift`:
 ```swift
+// SPDX-FileCopyrightText: 2026 True Positive LLC
+// SPDX-License-Identifier: GPL-3.0-only
 import XCTest
 @testable import GlymrKit
 
@@ -274,22 +324,32 @@ final class ThemeTests: XCTestCase {
         XCTAssertEqual(Theme.all.count, 1)
         XCTAssertEqual(Theme.all.first, Theme.bellBronze)
     }
+
+    func testRgbaParsesHexAndOpacity() {
+        let c = ThemeColor("#D49A5C", opacity: 0.5).rgba()
+        XCTAssertEqual(c.red,   Double(0xD4) / 255, accuracy: 0.0001)
+        XCTAssertEqual(c.green, Double(0x9A) / 255, accuracy: 0.0001)
+        XCTAssertEqual(c.blue,  Double(0x5C) / 255, accuracy: 0.0001)
+        XCTAssertEqual(c.opacity, 0.5, accuracy: 0.0001)
+    }
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `swift test --filter ThemeTests`
 Expected: FAIL — `cannot find 'Theme' in scope`.
 
-- [ ] **Step 3: Implement the token types**
+- [ ] **Step 3: Implement the token types (no SwiftUI import — agnostic)**
 
 `Sources/GlymrKit/Theme/Theme.swift`:
 ```swift
-import SwiftUI
+// SPDX-FileCopyrightText: 2026 True Positive LLC
+// SPDX-License-Identifier: GPL-3.0-only
 
 /// A resolved color reference: a palette hex plus an opacity multiplier.
 /// Tokens hold `ThemeColor` values so equality is testable without rendering.
+/// This type is platform-agnostic — no SwiftUI here (see ThemeEnvironment.swift).
 public struct ThemeColor: Equatable, Sendable {
     public let hex: String
     public let opacity: Double
@@ -302,6 +362,17 @@ public struct ThemeColor: Equatable, Sendable {
     /// Returns a copy of this color at the given opacity (0...1).
     public func alpha(_ opacity: Double) -> ThemeColor {
         ThemeColor(hex, opacity: opacity)
+    }
+
+    /// Parses the `#RRGGBB` hex into normalized components plus the opacity.
+    /// Pure math — unit-tested on Linux; the SwiftUI `Color` bridge consumes it.
+    public func rgba() -> (red: Double, green: Double, blue: Double, opacity: Double) {
+        let s = hex.hasPrefix("#") ? String(hex.dropFirst()) : hex
+        let v = UInt64(s, radix: 16) ?? 0
+        return (Double((v >> 16) & 0xFF) / 255,
+                Double((v >> 8) & 0xFF) / 255,
+                Double(v & 0xFF) / 255,
+                opacity)
     }
 }
 
@@ -356,6 +427,9 @@ public struct Theme: Equatable, Sendable {
 
 `Sources/GlymrKit/Theme/BellBronzeTheme.swift`:
 ```swift
+// SPDX-FileCopyrightText: 2026 True Positive LLC
+// SPDX-License-Identifier: GPL-3.0-only
+
 // Palette constants are file-private: only the semantic `Theme` is exported.
 // Values verbatim from docs/superpowers/specs/2026-06-17-design-tokens-design.md.
 private let bronze500       = ThemeColor("#D49A5C")
@@ -397,10 +471,18 @@ extension Theme {
 }
 ```
 
-- [ ] **Step 5: Implement the SwiftUI environment plumbing**
+- [ ] **Step 5: Run the agnostic tests to verify they pass (Linux)**
 
-`Sources/GlymrKit/Theme/ThemeEnvironment.swift`:
+Run: `swift test --filter ThemeTests`
+Expected: PASS (all five cases). The token layer is fully Linux-verified.
+
+- [ ] **Step 6: Implement the SwiftUI bridge (Apple-only; compiled on macOS CI)**
+
+`Sources/GlymrKit/Theme/ThemeEnvironment.swift` — the whole file is guarded so Linux skips it:
 ```swift
+// SPDX-FileCopyrightText: 2026 True Positive LLC
+// SPDX-License-Identifier: GPL-3.0-only
+#if canImport(SwiftUI)
 import SwiftUI
 
 private struct ThemeKey: EnvironmentKey {
@@ -416,25 +498,16 @@ extension EnvironmentValues {
 }
 
 extension Color {
-    /// Builds a SwiftUI `Color` from a `ThemeColor` (hex + opacity).
+    /// Builds a SwiftUI `Color` from a `ThemeColor` (hex + opacity), reusing the
+    /// agnostic `rgba()` parser so the math is identical to what's unit-tested.
     public init(_ themeColor: ThemeColor) {
-        let hex = themeColor.hex.dropFirst() // strip leading '#'
-        let v = UInt64(hex, radix: 16) ?? 0
-        self = Color(
-            .sRGB,
-            red:   Double((v >> 16) & 0xFF) / 255,
-            green: Double((v >> 8)  & 0xFF) / 255,
-            blue:  Double(v & 0xFF) / 255,
-            opacity: themeColor.opacity
-        )
+        let c = themeColor.rgba()
+        self = Color(.sRGB, red: c.red, green: c.green, blue: c.blue, opacity: c.opacity)
     }
 }
+#endif
 ```
-
-- [ ] **Step 6: Run the test to verify it passes**
-
-Run: `swift test --filter ThemeTests`
-Expected: PASS (all four cases).
+(No Linux test asserts on `Color`; its compile is verified by the macOS CI job. The color math it depends on is covered by `testRgbaParsesHexAndOpacity` on Linux.)
 
 - [ ] **Step 7: Commit**
 
@@ -446,6 +519,8 @@ git commit -m "feat: add semantic design-token layer with Bell Bronze theme"
 ---
 
 ### Task 3: Core data model + resolution
+
+Fully agnostic — pure Foundation `Codable`. Linux-tested.
 
 **Files:**
 - Create: `Sources/GlymrKit/Model/Inherited.swift`
@@ -462,10 +537,12 @@ git commit -m "feat: add semantic design-token layer with Bell Bronze theme"
 - Produces: `struct Identity: Codable, Equatable`, `typealias IdentityRef = UUID`, `enum IdentityFlavor`, `enum BiometricPolicy`
 - Produces: `func resolvePort(host:defaults:) -> Int`, `func hasCycle(savingHostId:chain:in:) -> Bool`
 
-- [ ] **Step 1: Write the failing tests**
+- [ ] **Step 1: Write the failing tests (Linux)**
 
 `Tests/GlymrKitTests/ModelTests.swift`:
 ```swift
+// SPDX-FileCopyrightText: 2026 True Positive LLC
+// SPDX-License-Identifier: GPL-3.0-only
 import XCTest
 @testable import GlymrKit
 
@@ -516,6 +593,9 @@ Expected: FAIL — `cannot find 'Host' in scope`.
 
 `Sources/GlymrKit/Model/Inherited.swift`:
 ```swift
+// SPDX-FileCopyrightText: 2026 True Positive LLC
+// SPDX-License-Identifier: GPL-3.0-only
+
 /// Distinguishes three states the schema requires from day one:
 /// `.inherit` (field absent → inherit from Defaults, then built-in),
 /// `.explicit(value)` (set), and `.explicit(nil)` (explicitly cleared to "none").
@@ -536,6 +616,8 @@ public enum Inherited<T: Equatable & Codable>: Equatable, Codable {
 
 `Sources/GlymrKit/Model/Identity.swift`:
 ```swift
+// SPDX-FileCopyrightText: 2026 True Positive LLC
+// SPDX-License-Identifier: GPL-3.0-only
 import Foundation
 
 public typealias IdentityRef = UUID
@@ -578,6 +660,8 @@ public struct Identity: Codable, Equatable, Sendable {
 
 `Sources/GlymrKit/Model/Host.swift`:
 ```swift
+// SPDX-FileCopyrightText: 2026 True Positive LLC
+// SPDX-License-Identifier: GPL-3.0-only
 import Foundation
 
 public enum JumpHop: Codable, Equatable, Sendable {
@@ -653,6 +737,8 @@ public struct Defaults: Codable, Equatable, Sendable {
 
 `Sources/GlymrKit/Model/Resolution.swift`:
 ```swift
+// SPDX-FileCopyrightText: 2026 True Positive LLC
+// SPDX-License-Identifier: GPL-3.0-only
 import Foundation
 
 /// Built-in fallback for `port` per host-config-model resolution table.
@@ -682,7 +768,7 @@ public func hasCycle(savingHostId: UUID, chain: [JumpHop],
 }
 ```
 
-- [ ] **Step 7: Run the tests to verify they pass**
+- [ ] **Step 7: Run the tests to verify they pass (Linux)**
 
 Run: `swift test --filter ModelTests`
 Expected: PASS (all five cases).
@@ -698,6 +784,8 @@ git commit -m "feat: add core host/identity data model with inheritance resoluti
 
 ### Task 4: AES-256-GCM record envelope
 
+Agnostic via the swift-crypto shim — Linux-tested. `AES.GCM`/`SymmetricKey` are API-identical between CryptoKit and swift-crypto, so the same code runs both places.
+
 **Files:**
 - Create: `Sources/GlymrKit/Crypto/RecordEnvelope.swift`
 - Test: `Tests/GlymrKitTests/RecordEnvelopeTests.swift`
@@ -707,12 +795,18 @@ git commit -m "feat: add core host/identity data model with inheritance resoluti
 - Produces: `enum RecordEnvelope { static func seal<T: Encodable>(_:key:) throws -> Data; static func open<T: Decodable>(_:as:key:) throws -> T }`
 - Produces: `enum RecordEnvelopeError: Error { case decryptionFailed }`
 
-- [ ] **Step 1: Write the failing tests**
+- [ ] **Step 1: Write the failing tests (Linux)**
 
 `Tests/GlymrKitTests/RecordEnvelopeTests.swift`:
 ```swift
+// SPDX-FileCopyrightText: 2026 True Positive LLC
+// SPDX-License-Identifier: GPL-3.0-only
 import XCTest
+#if canImport(CryptoKit)
 import CryptoKit
+#else
+import Crypto
+#endif
 @testable import GlymrKit
 
 final class RecordEnvelopeTests: XCTestCase {
@@ -758,12 +852,18 @@ final class RecordEnvelopeTests: XCTestCase {
 Run: `swift test --filter RecordEnvelopeTests`
 Expected: FAIL — `cannot find 'RecordEnvelope' in scope`.
 
-- [ ] **Step 3: Implement the envelope**
+- [ ] **Step 3: Implement the envelope (CryptoKit/swift-crypto shim)**
 
 `Sources/GlymrKit/Crypto/RecordEnvelope.swift`:
 ```swift
+// SPDX-FileCopyrightText: 2026 True Positive LLC
+// SPDX-License-Identifier: GPL-3.0-only
 import Foundation
+#if canImport(CryptoKit)
 import CryptoKit
+#else
+import Crypto   // Apple's swift-crypto — API-compatible on Linux
+#endif
 
 public enum RecordEnvelopeError: Error, Equatable {
     case decryptionFailed
@@ -797,10 +897,10 @@ public enum RecordEnvelope {
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [ ] **Step 4: Run the tests to verify they pass (Linux)**
 
 Run: `swift test --filter RecordEnvelopeTests`
-Expected: PASS (all four cases).
+Expected: PASS (all four cases) — using swift-crypto on Linux.
 
 - [ ] **Step 5: Commit**
 
@@ -813,21 +913,23 @@ git commit -m "feat: add AES-256-GCM record envelope for at-rest CloudKit record
 
 ## Phase 0 exit criteria
 
+**Linux fast loop (every task's logic):**
+- [ ] `cargo test` green (Task 1 Rust core).
+- [ ] `swift test` green across `ThemeTests`, `ModelTests`, `RecordEnvelopeTests` (using swift-crypto).
+
+**macOS CI gate (Apple-only surface):**
 - [ ] `./scripts/build-xcframework.sh` produces `GlymrSSHCore.xcframework`.
-- [ ] `swift test` is green across `BridgeTests`, `ThemeTests`, `ModelTests`, `RecordEnvelopeTests`.
+- [ ] `swift test` green including `BridgeTests` (`coreVersion()` round-trips Rust→Swift).
+- [ ] `GlymrKit` compiles for iOS (the `#if canImport(SwiftUI)` `ThemeEnvironment` bridge builds).
+
+**Both:**
 - [ ] Four conventional commits, one per task.
 - [ ] No hex literals outside `BellBronzeTheme.swift`'s palette block.
+- [ ] Every source file carries the REUSE header.
 
 ## Self-review notes
 
-- **Spec coverage:** `design-tokens` (Task 2 — full token registry + theme +
-  environment); `host-config-model` schema (Task 3 — entities, `Inherited<T>`
-  semantics, resolution table for `port`, cycle prevention) and its AES storage
-  primitive (Task 4). Remaining host fields (Tier 2, mosh/tailscale/glymr
-  extensions, full fallback table) are deliberately deferred to Phase 2, where
-  the storage/CRUD layer consumes them — they follow the identical `Inherited<T>`
-  pattern established here.
-- **Bridge scope:** Phase 0 proves only `coreVersion()`. All SSH surface
-  (connect/auth/channels/forwards) is Phase 1, by design — Task 1 exists to
-  de-risk the toolchain, not the protocol.
+- **Platform split rationale:** Glymr ships only via macOS-built iOS binaries, but most of Phase 0 is platform-agnostic logic. Putting it behind `#if canImport` shims (crypto) and keeping SwiftUI out of the value types lets the Linux dev box run a real red→green TDD loop for Tasks 1 (Rust), 3, 4, and the token values of 2 — only the XCFramework bridge and the SwiftUI `Color`/environment wait for macOS CI. The host-conditional `Package.swift` is what lets `swift test` resolve on Linux without the iOS-only XCFramework.
+- **Spec coverage:** `design-tokens` (Task 2 — full token registry + theme + the `Color` bridge); `host-config-model` schema (Task 3 — entities, `Inherited<T>` semantics, resolution table for `port`, cycle prevention) and its AES storage primitive (Task 4). Remaining host fields (Tier 2, mosh/tailscale/glymr extensions, full fallback table) are deferred to Phase 2, where the storage/CRUD layer consumes them — they follow the identical `Inherited<T>` pattern established here.
+- **Bridge scope:** Phase 0 proves only `coreVersion()`. All SSH surface (connect/auth/channels/forwards) is Phase 1, by design — Task 1 exists to de-risk the toolchain, not the protocol.
 </content>
