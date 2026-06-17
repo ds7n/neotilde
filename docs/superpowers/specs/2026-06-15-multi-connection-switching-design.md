@@ -114,6 +114,17 @@ When waking a sleeping mosh connection:
 2. If resume fails (server-side timeout fired, server rebooted, port mapping changed), fall through transparently to a fresh mosh bootstrap: SSH to the host, run `mosh-server new`, capture the new key + port, switch the mosh client to it. The user sees one "waking…" indicator that resolves to Active — they are not informed *which* path succeeded.
 3. If the fresh bootstrap also fails (host unreachable, auth changed, mosh-server binary missing), the row demotes to Recent and the standard amber/red banner explains the failure. The user can tap the Recent row to retry, which becomes a clean + Connect flow.
 
+### Mosh + Tailscale interaction
+
+When the host is reached via Tailscale (`tailscale.required = true` in the host config, or simply a `100.64.x.x` / MagicDNS hostname), mosh's UDP roaming continues to work because Tailscale's userspace networking re-routes packets across the iOS network change transparently — from the mosh server's view, the source endpoint remains the Tailscale-assigned address regardless of which underlying physical interface (WiFi → cellular, etc.) the iOS device is on.
+
+Two cases where this falls apart and the connection drops to Recent with the standard amber/red banner:
+
+- **Tailscale itself goes down on the device** (user signed out, exit-node lost, app revoked Network Extension permission). The 100.64 address is no longer routable; mosh has no path to the host. Banner says "Tailscale unreachable" per the existing `tailscale.required` framing.
+- **iOS suspends Tailscale's Network Extension long enough that its session lapses** (rare; the NEPacketTunnelProvider runs in its own process and is fairly resilient). Mosh appears to be roaming but actually has no underlying transport. The standard mosh resume → bootstrap → drop path handles this; the failure surfaces as "host unreachable."
+
+In the happy path the user experience is the same as roaming over public internet: the mosh session resumes, the screen catches up, no special UX.
+
 ### SSH + tmux resume
 
 When waking a sleeping SSH connection:
