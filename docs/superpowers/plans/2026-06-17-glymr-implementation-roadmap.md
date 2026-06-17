@@ -19,8 +19,9 @@ Keychain / Secure Enclave; host metadata lives in CloudKit Private DB under
 client-side AES-256-GCM.
 
 **Tech Stack:** Swift 6 / SwiftUI, Rust (`russh` 0.61+, `tokio`, UniFFI 0.31+),
-SwiftTerm (terminal emulator — see Decision D1), CryptoKit, CloudKit, Keychain
-Services, Secure Enclave.
+SwiftTerm (terminal emulator — see Decision D1), CryptoKit / swift-crypto (the
+Linux-testable shim), CloudKit, Keychain Services, Secure Enclave. **Licensed
+GPL-3.0-only** (+ `LICENSE.IOS` covenant). CI on GitHub Actions macOS runners.
 
 ---
 
@@ -30,8 +31,10 @@ Services, Secure Enclave.
 |---|---|---|
 | **SSH stack** | **russh** (Rust, Apache-2.0, v0.61.2) | Only actively-maintained stack with `mlkem768x25519` + OpenSSH cert auth + full per-category algorithm control + all forward types. Compiles for iOS today (cryptovec fix PR #483; aws-lc-rs ≥1.14 or `ring` backend). |
 | **Swift↔Rust bridge** | **UniFFI 0.31+** with `#[uniffi::export(async_runtime = "tokio")]` | Full async→Swift `async/await` mapping; ships XCFramework tooling; proven by prior art (nikhilsh/conduit, jowparks/server-remote). No reusable russh→Swift binding exists — we build a thin one (~12–20 methods). |
-| **Rust crypto backend** | Default **aws-lc-rs ≥1.14** for device; `ring` as the conservative fallback (`--no-default-features --features ring`) | aws-lc-rs iOS-sim bindgen fix landed v1.14.0 (2025-09-24). FIPS unsupported on iOS — use non-FIPS. |
+| **Rust crypto backend** | **aws-lc-rs** (pin `aws-lc-sys` ≥ 0.39.0) | Required for `mlkem768x25519` — **`ring` has no ML-KEM**, so it would forfeit the PQC that motivated russh. aws-lc-rs became **GPL-3-compatible** when AWS-LC relicensed its OpenSSL-derived sources to Apache-2.0 (PR #3091, 2026-03-11), so the earlier license-driven lean toward `ring` no longer applies. Enforce with a `cargo deny` license gate (assert no `OpenSSL`-tagged crate). iOS-sim bindgen fix landed v1.14.0; FIPS unsupported on iOS — use non-FIPS. `ring` is a fallback only if aws-lc-rs blocks the iOS build (accepting loss of ML-KEM → re-opens D2). |
 | **Terminal emulator** | **SwiftTerm** (recommended — see Decision D1) | Maps ~1:1 to `terminal-emulator-scope-design`: xterm-256, truecolor, SGR mouse modes, DECSCUSR, OSC. Confirm before Phase 3. |
+| **License** | **GPL-3.0-only** + `LICENSE.IOS` covenant | Matches the one proven open-source-**and**-paid precedent in this category (Blink); as sole copyright holder you dual-distribute (GPL source for self-builders + paid App Store binary). All deps are GPL-3-compatible (russh Apache-2.0, UniFFI MPL-2.0, SwiftTerm MIT, swift-crypto Apache-2.0). iSH-style `LICENSE.IOS` non-enforcement covenant resolves the GPL-vs-App-Store ToS tension. |
+| **Build & CI host** | **GitHub Actions macOS runners** + local Swift-Linux/swift-crypto fast loop | iOS build/test needs macOS (Apple SDK is EULA-bound to Apple hardware; no iOS Simulator on Linux). GHA macOS is **free & unlimited on a public repo**, with full arbitrary shell for the Rust→UniFFI→xcframework→`swift test` pipeline. The Linux box runs the platform-agnostic tier (Rust core, data model, crypto via swift-crypto) for fast TDD. Xcode Cloud reserved for TestFlight/App Store **delivery** later (needs a one-time Mac to onboard + an app target). |
 
 ## Open decisions to resolve before their phase
 
@@ -43,7 +46,17 @@ Services, Secure Enclave.
   for upstream, (b) contribute it to russh, (c) amend the spec to make sntrup761
   opportunistic. Decide before declaring Tier-1 complete.
 - **D3 — CloudKit container provisioning (before Phase 2):** needs an Apple
-  Developer account + iCloud container identifier. Procurement, not engineering.
+  Developer account ($99/yr) + iCloud container identifier. Procurement, not
+  engineering. (Same $99 account also unlocks Xcode Cloud's 25 free hrs for
+  delivery and is required for App Store signing.)
+- **D4 — aws-lc-rs iOS build (before Phase 1 ships):** confirm aws-lc-rs builds
+  for all three iOS triples in GHA. If it blocks, the only fallback (`ring`)
+  drops ML-KEM — which re-opens D2's PQC question. Verify early in the Phase-1
+  spike.
+
+**Resolved:** repo privacy/history scrubbed clean (commit-author domain, sample
+handle, internal IPs rewritten across all history; force-pushed 2026-06-17) — so
+flipping the repo public is unblocked whenever the open-source launch is wanted.
 
 ---
 
@@ -125,6 +138,16 @@ plumbing (hidden in v1), iPad single-window size-class pass.
 - **Secrets never in CloudKit** — keys/passwords/passphrases/`known_hosts` live in Keychain/SE; CloudKit holds only AES-GCM ciphertext of metadata.
 - **Conventional commits**; squash-merge to keep history clean.
 - **UUIDs internal, labels for humans** — references survive label edits.
+- **GPL-3.0-only** — every source file carries the license header; keep UniFFI's
+  MPL-2.0 file headers intact; ship `LICENSE` + `LICENSE.IOS`.
+- **`cargo deny check licenses`** gates every CI build — fails if any crate
+  resolves to a GPL-incompatible license (e.g. an `OpenSSL`-tagged `aws-lc-sys`
+  < 0.39.0 sneaking back in).
+- **Platform-agnostic logic stays Linux-testable** — crypto via swift-crypto
+  behind `#if canImport(CryptoKit)`; keep the Apple-only UI/SDK layer thin so the
+  testable surface is maximal before macOS CI.
+- **Never commit secrets** — history goes fully public on open-sourcing; gitignore
+  `.env`/`data/`.
 
 ## Dependency notes
 
