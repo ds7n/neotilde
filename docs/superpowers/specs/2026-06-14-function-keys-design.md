@@ -126,7 +126,7 @@ A small revision to the previously-locked Ctrl/Alt/Shift modifier behavior. The 
 - Alt-lock is vanishingly rare in terminal work.
 - Ctrl-lock has a real use case: Emacs-style chord sequences (`Ctrl-x Ctrl-s`, `Ctrl-x Ctrl-f`).
 
-The asymmetry maps to actual use. This is a delta against the v0 keybar spec — `mockups/keybar-v1.html` and the locked-decisions doc should be updated to reflect Ctrl-lock.
+The asymmetry maps to actual use. This is a delta against the v0 keybar spec — `mockups/specs/keybar.html` and the locked-decisions doc should be updated to reflect Ctrl-lock.
 
 ---
 
@@ -192,5 +192,5 @@ Users can edit this file to add their own auto-Fn processes (e.g. a custom TUI).
 
 This spec creates two follow-up edits:
 
-1. **`mockups/keybar-v1.html` and locked-decisions doc**: Ctrl's behavior changes from "sticky-for-one only" to "sticky-for-one with double-tap-to-lock." Alt and Shift unchanged.
+1. **`mockups/specs/keybar.html` and locked-decisions doc**: Ctrl's behavior changes from "sticky-for-one only" to "sticky-for-one with double-tap-to-lock." Alt and Shift unchanged.
 2. **`2026-06-14-context-detection-design.md` §11**: the bundled list's note about `htop`/`top` being deferred until function keys are designed can be retired — they're now covered here via auto-Fn (no symbol promotions needed for them).

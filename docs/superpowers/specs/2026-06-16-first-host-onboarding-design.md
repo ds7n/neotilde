@@ -181,5 +181,5 @@ the gesture or visual.
 - `docs/superpowers/specs/2026-06-14-function-keys-design.md`
 - `docs/superpowers/specs/2026-06-15-keybar-customization-design.md`
 - `docs/superpowers/specs/2026-06-15-host-config-model-design.md`
-- `mockups/drafts/first-host-onboarding.html` — to be added alongside
+- `mockups/specs/first-host-onboarding.html` — added alongside
   this spec.

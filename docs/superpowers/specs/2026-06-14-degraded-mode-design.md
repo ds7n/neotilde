@@ -115,5 +115,5 @@ The control-mode channel closes unexpectedly (EOF on `-CC` stream) while the und
 
 ## Open questions deferred to other specs
 
-- Exact wording, color, and timing of the banners — to be tuned alongside the existing connection-status banner work in `mockups/ux-directions.html`.
+- Exact wording, color, and timing of the banners — to be tuned alongside the existing connection-status banner work in `mockups/specs/features.html` (transient banner) and `mockups/specs/banner-expanded-templates.html` (expanded view).
 - Whether to surface a host-level indicator anywhere outside the keybar (e.g., a small "raw" badge on the host in a future host picker) — defer to the deferred **multi-connection / host switching** topic, which is where any host-list UI will be designed.

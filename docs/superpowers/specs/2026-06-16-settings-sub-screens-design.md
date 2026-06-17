@@ -303,4 +303,4 @@ haptic on copy, no visible toast.
 - `docs/superpowers/specs/2026-06-15-keybar-customization-design.md`
 - `docs/superpowers/specs/2026-06-16-icloud-sync-scope-design.md`
 - `docs/superpowers/specs/2026-06-16-first-host-onboarding-design.md`
-- `mockups/drafts/settings-sub-screens.html` — added alongside this spec.
+- `mockups/specs/settings-sub-screens.html` — added alongside this spec.

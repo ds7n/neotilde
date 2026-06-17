@@ -156,7 +156,7 @@ helps the first; it is misleading-empty for the second. Fault details
 (DNS / TCP / auth method) help the second; they are noise during a
 healthy session that just hit a momentary latency spike.
 
-(Mockup: `mockups/drafts/banner-expanded-templates.html` — four phone
+(Mockup: `mockups/specs/banner-expanded-templates.html` — four phone
 frames, two per template.)
 
 ## Dismissal triggers
@@ -265,5 +265,5 @@ second and drops the oldest beyond 60s; no animation between samples
   Template 2.
 - `mockups/drafts/banner-expanded-layouts.html` — three layout options
   compared (A wins).
-- `mockups/drafts/banner-expanded-templates.html` — both templates
+- `mockups/specs/banner-expanded-templates.html` — both templates
   rendered with example states.
