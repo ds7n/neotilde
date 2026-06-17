@@ -173,6 +173,25 @@ The reference sources:
 
 The expectation is that the maintainer notices these signals as part of normal SSH-ecosystem awareness, not that a calendar task forces the review. If the rhythm decays, the algorithm lists themselves are the canary — users will complain when they can't connect to a new safe-algo-only host.
 
+## Stack availability (russh 0.61.2) — added 2026-06-17
+
+The v1 SSH stack is **russh 0.61.2**. Three algorithms listed above are not yet
+implemented by russh and are **omitted from v1's offered set** (opportunistic
+omit, decided 2026-06-17). Each auto-enters its tier when russh gains support;
+no spec change is needed at that point — only adding the constant to
+`crates/glymr-ssh-core/src/algorithms.rs`.
+
+| Omitted algorithm | Tier | russh tracking |
+|---|---|---|
+| `sntrup761x25519-sha512@openssh.com` | 1 (KEX) | russh #626 |
+| `umac-128-etm@openssh.com` | 1 (MAC) | not yet implemented |
+| `hmac-sha1-96` | 3 (MAC) | not yet implemented |
+
+Post-quantum key exchange is **unaffected**: russh implements
+`mlkem768x25519-sha256`, which remains Tier 1 and the PQC KEX for v1. The Tier-4
+"never offered" algorithms (arcfour, blowfish, cast128, 3des, hmac-md5, ssh-dss,
+dh-group1) are not implemented by russh either, so excluding them is automatic.
+
 ## Out of scope (v1)
 
 - **Per-algorithm fine-grained control** (the Tier 3 host-config schema option) stays deferred to v1.5+. The two-toggle surface is the v1 control.
