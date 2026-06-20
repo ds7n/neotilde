@@ -1,5 +1,7 @@
 # Phase 3a — tmux control-mode parser Implementation Plan
 
+**Status:** Complete — 49 tests green (`swift test`); parser on `master`. A code review caught a fail-open octal-digit validation bug (non-ASCII Unicode numerics), fixed before merge.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build a pure, streaming Swift parser that turns the `tmux -CC` control-mode byte stream into typed `ControlModeEvent`s for the native pane/window model.
@@ -266,7 +268,9 @@ git commit -m "feat: add tmux %output octal unescaping"
 
 **Interfaces:**
 - Consumes: `PaneID` (Task 1).
-- Produces: `Geometry(w:h:x:y:)` (`UInt16` fields, `Equatable, Sendable`); `PaneLayout` (`indirect enum`, `Equatable, Sendable`) with cases `.leaf(PaneID, Geometry)`, `.columns([PaneLayout], Geometry)`, `.rows([PaneLayout], Geometry)`; and `static func PaneLayout.parse(_ s: Substring) -> PaneLayout?` (nil on any grammar error; leading 4-hex checksum ignored).
+- Produces: `Geometry(w:h:x:y:)` (`UInt16` fields, `Equatable, Sendable`); `PaneLayout` (`indirect enum`, `Equatable, Sendable`) with cases `.leaf(PaneID, Geometry)`, `.columns([PaneLayout], Geometry)`, `.rows([PaneLayout], Geometry)`; and `static func PaneLayout.parse(_ input: some StringProtocol) -> PaneLayout?` (accepts String/Substring/literal; nil on any grammar error; leading 4-hex checksum ignored).
+
+**Swift note:** in tests, anchor multi-node expected values in an explicitly-typed local (`let expected: PaneLayout = .columns([...], ...)`) — Swift can't infer deeply-nested `.case` array literals passed straight into `XCTAssertEqual`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -352,7 +356,9 @@ public indirect enum PaneLayout: Equatable, Sendable {
 extension PaneLayout {
     /// Parse a tmux layout string (`checksum,WxH,X,Y{…}`). The leading 4-hex
     /// checksum is parsed and ignored. Returns nil on any grammar violation.
-    public static func parse(_ s: Substring) -> PaneLayout? {
+    /// Accepts any string type (`String`, `Substring`, literal).
+    public static func parse(_ input: some StringProtocol) -> PaneLayout? {
+        let s = Substring(input)
         guard let comma = s.firstIndex(of: ",") else { return nil }
         var scanner = Scanner(s[s.index(after: comma)...])
         guard let node = scanner.node(), scanner.isAtEnd else { return nil }
