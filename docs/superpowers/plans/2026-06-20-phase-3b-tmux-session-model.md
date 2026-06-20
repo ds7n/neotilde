@@ -1,5 +1,7 @@
 # Phase 3b — tmux session/pane model Implementation Plan
 
+**Status:** Complete — 17 tests green (`swift test`); model on `master`. Correctness review found no bugs.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Maintain the structural state (windows, pane-geometry trees, active window/pane, session identity, ended-state) of the attached tmux session by applying Phase-3a `ControlModeEvent`s.
