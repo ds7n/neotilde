@@ -92,4 +92,159 @@ final class InheritedBindingTests: XCTestCase {
         let out: Inherited<Int> = textToInheritedInt(inheritedIntToText(.explicit(22)))
         XCTAssertEqual(out, .explicit(22))
     }
+
+    // MARK: - inheritedBoolToSelection
+
+    func testBoolInheritYieldsNilSelection() {
+        XCTAssertNil(inheritedBoolToSelection(.inherit))
+    }
+
+    func testBoolExplicitNilYieldsNilSelection() {
+        XCTAssertNil(inheritedBoolToSelection(.explicit(nil)))
+    }
+
+    func testBoolExplicitTrueYieldsTrue() {
+        XCTAssertEqual(inheritedBoolToSelection(.explicit(true)), true)
+    }
+
+    func testBoolExplicitFalseYieldsFalse() {
+        XCTAssertEqual(inheritedBoolToSelection(.explicit(false)), false)
+    }
+
+    // MARK: - selectionToInheritedBool
+
+    func testNilSelectionBecomesInheritBool() {
+        XCTAssertEqual(selectionToInheritedBool(nil), .inherit)
+    }
+
+    func testTrueSelectionBecomesExplicitTrue() {
+        XCTAssertEqual(selectionToInheritedBool(true), .explicit(true))
+    }
+
+    func testFalseSelectionBecomesExplicitFalse() {
+        XCTAssertEqual(selectionToInheritedBool(false), .explicit(false))
+    }
+
+    func testBoolRoundTripInherit() {
+        XCTAssertEqual(selectionToInheritedBool(inheritedBoolToSelection(.inherit)), .inherit)
+    }
+
+    func testBoolRoundTripExplicitTrue() {
+        XCTAssertEqual(selectionToInheritedBool(inheritedBoolToSelection(.explicit(true))), .explicit(true))
+    }
+
+    func testBoolRoundTripExplicitFalse() {
+        XCTAssertEqual(selectionToInheritedBool(inheritedBoolToSelection(.explicit(false))), .explicit(false))
+    }
+
+    /// Three-state discipline: explicit(false) must not collapse to inherit.
+    func testExplicitFalseIsDistinctFromInherit() {
+        let fromFalse = selectionToInheritedBool(inheritedBoolToSelection(.explicit(false)))
+        let fromInherit = selectionToInheritedBool(inheritedBoolToSelection(.inherit))
+        XCTAssertNotEqual(fromFalse, fromInherit)
+    }
+
+    // MARK: - inheritedSHKCToSelection
+
+    func testSHKCInheritYieldsNilSelection() {
+        XCTAssertNil(inheritedSHKCToSelection(.inherit))
+    }
+
+    func testSHKCExplicitNilYieldsNilSelection() {
+        XCTAssertNil(inheritedSHKCToSelection(.explicit(nil)))
+    }
+
+    func testSHKCExplicitYesYieldsYes() {
+        XCTAssertEqual(inheritedSHKCToSelection(.explicit(.yes)), .yes)
+    }
+
+    func testSHKCExplicitNoYieldsNo() {
+        XCTAssertEqual(inheritedSHKCToSelection(.explicit(.no)), .no)
+    }
+
+    func testSHKCExplicitAcceptNewYieldsAcceptNew() {
+        XCTAssertEqual(inheritedSHKCToSelection(.explicit(.acceptNew)), .acceptNew)
+    }
+
+    func testSHKCExplicitAskYieldsAsk() {
+        XCTAssertEqual(inheritedSHKCToSelection(.explicit(.ask)), .ask)
+    }
+
+    // MARK: - selectionToInheritedSHKC
+
+    func testNilSHKCSelectionBecomesInherit() {
+        XCTAssertEqual(selectionToInheritedSHKC(nil), .inherit)
+    }
+
+    func testSHKCSelectionYesBecomesExplicitYes() {
+        XCTAssertEqual(selectionToInheritedSHKC(.yes), .explicit(.yes))
+    }
+
+    func testSHKCRoundTripInherit() {
+        XCTAssertEqual(selectionToInheritedSHKC(inheritedSHKCToSelection(.inherit)), .inherit)
+    }
+
+    func testSHKCRoundTripExplicit() {
+        for c: StrictHostKeyChecking in [.yes, .acceptNew, .ask, .no] {
+            XCTAssertEqual(selectionToInheritedSHKC(inheritedSHKCToSelection(.explicit(c))), .explicit(c))
+        }
+    }
+
+    // MARK: - inheritedAuthMethodsToSelection
+
+    func testAuthMethodsInheritYieldsNilSelection() {
+        XCTAssertNil(inheritedAuthMethodsToSelection(.inherit))
+    }
+
+    func testAuthMethodsExplicitNilYieldsNilSelection() {
+        XCTAssertNil(inheritedAuthMethodsToSelection(.explicit(nil)))
+    }
+
+    func testAuthMethodsExplicitEmptyYieldsEmptySet() {
+        XCTAssertEqual(inheritedAuthMethodsToSelection(.explicit([])), Set<AuthMethod>())
+    }
+
+    func testAuthMethodsExplicitSingleYieldsSingletonSet() {
+        XCTAssertEqual(inheritedAuthMethodsToSelection(.explicit([.publicKey])), Set([.publicKey]))
+    }
+
+    func testAuthMethodsExplicitMultipleYieldsFullSet() {
+        let result = inheritedAuthMethodsToSelection(.explicit([.publicKey, .password]))
+        XCTAssertEqual(result, Set([.publicKey, .password]))
+    }
+
+    // MARK: - selectionToInheritedAuthMethods
+
+    func testNilAuthSelectionBecomesInherit() {
+        XCTAssertEqual(selectionToInheritedAuthMethods(nil), .inherit)
+    }
+
+    func testEmptySetBecomesExplicitEmpty() {
+        XCTAssertEqual(selectionToInheritedAuthMethods(Set<AuthMethod>()), .explicit([]))
+    }
+
+    func testAuthMethodsCanonicalOrder() {
+        // Input order irrelevant; output must be canonical: publicKey, password, keyboardInteractive.
+        let result = selectionToInheritedAuthMethods(Set([.keyboardInteractive, .publicKey, .password]))
+        XCTAssertEqual(result, .explicit([.publicKey, .password, .keyboardInteractive]))
+    }
+
+    func testAuthMethodsRoundTripInherit() {
+        XCTAssertEqual(selectionToInheritedAuthMethods(inheritedAuthMethodsToSelection(.inherit)), .inherit)
+    }
+
+    func testAuthMethodsRoundTripExplicit() {
+        // All three — canonical order preserved through round-trip.
+        let input: Inherited<[AuthMethod]> = .explicit([.publicKey, .password, .keyboardInteractive])
+        let out = selectionToInheritedAuthMethods(inheritedAuthMethodsToSelection(input))
+        XCTAssertEqual(out, input)
+    }
+
+    /// Three-state discipline: explicit([]) must not collapse to inherit.
+    func testExplicitEmptyAuthMethodsIsDistinctFromInherit() {
+        XCTAssertNotEqual(
+            selectionToInheritedAuthMethods(Set<AuthMethod>()),
+            selectionToInheritedAuthMethods(nil)
+        )
+    }
 }

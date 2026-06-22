@@ -31,6 +31,14 @@ struct HostEditorView: View {
     /// True once the user has interacted with the Hostname field.
     @State private var hostNameTouched = false
 
+    // Task 4 — collapsible section expansion state
+    /// Whether the Connection section is expanded.
+    @State var connectionExpanded = false
+    /// Whether the Jump chain section is expanded.
+    @State var jumpChainExpanded = false
+    /// Whether the Port forwarding section is expanded.
+    @State var portForwardingExpanded = false
+
     // MARK: - Init
 
     init(creating: Bool) {
@@ -68,14 +76,14 @@ struct HostEditorView: View {
             Form {
                 basicsSection
                 authSection
-                // TODO(Task 4): Connection section (collapsed)
-                // TODO(Task 5): Jump chain section (collapsed)
-                // TODO(Task 5): Port forwarding section (collapsed)
-                // TODO(Task 6): Mosh section (collapsed)
-                // TODO(Task 7): Tailscale section (collapsed)
-                // TODO(Task 7): Glymr behavior section (collapsed)
+                connectionSection
+                jumpChainSection
+                portForwardingSection
+                // TODO(Task 5): Mosh section (collapsed)
+                // TODO(Task 5): Tailscale section (collapsed)
+                // TODO(Task 5): Glymr behavior section (collapsed)
                 if !vm.isNew {
-                    // TODO(Task 9): Delete host section (edit mode)
+                    // TODO(Task 5): Delete host section (edit mode)
                 }
             }
             // Fix 2 — principal toolbar item replaces .navigationTitle for
@@ -85,6 +93,10 @@ struct HostEditorView: View {
             .onAppear {
                 defaults = (try? AppStores.shared.hosts.defaults()) ?? Defaults()
                 vm.revalidate()
+                applyInitialExpansion()
+            }
+            .onChange(of: vm.issues) { _, _ in
+                syncSectionAutoExpand()
             }
         }
         .confirmationDialog(
@@ -359,6 +371,54 @@ struct HostEditorView: View {
         return "e.g. 22"
     }
 
+    // MARK: - Expansion logic
+
+    /// Sets initial expansion for sections 3–5 per the spec's rules:
+    /// new host → all collapsed; edit → expand iff the section has a non-default value.
+    /// Also applies auto-expand for any hard issue whose section should be visible.
+    private func applyInitialExpansion() {
+        if !vm.isNew {
+            // Connection: expand if any Tier-2 field is explicit
+            connectionExpanded =
+                vm.host.serverAliveInterval != .inherit ||
+                vm.host.serverAliveCountMax != .inherit ||
+                vm.host.compression != .inherit ||
+                vm.host.forwardAgent != .inherit ||
+                vm.host.strictHostKeyChecking != .inherit ||
+                vm.host.preferredAuthentications != .inherit
+
+            // Jump chain: expand if proxyJump has any hops
+            jumpChainExpanded = vm.host.proxyJump.value?.isEmpty == false
+
+            // Port forwarding: expand if any forward list is non-empty
+            portForwardingExpanded =
+                vm.host.localForwards.value?.isEmpty == false ||
+                vm.host.remoteForwards.value?.isEmpty == false ||
+                vm.host.dynamicForwards.value?.isEmpty == false
+        }
+        // Auto-expand on hard issues (also triggered live via onChange → revalidate)
+        syncSectionAutoExpand()
+    }
+
+    /// Expands a section if it contains a hard-block issue. Call after revalidate().
+    /// Only expands; never collapses a user-opened section.
+    func syncSectionAutoExpand() {
+        let hasJumpIssue = vm.issues.contains { issue in
+            if issue.kind == .jumpChainCycle { return true }
+            if case .inlineJumpHostMissingHostName = issue.kind { return true }
+            return false
+        }
+        if hasJumpIssue { jumpChainExpanded = true }
+
+        let hasPortIssue = vm.issues.contains { issue in
+            if case .localForwardMissingField = issue.kind { return true }
+            if case .remoteForwardMissingField = issue.kind { return true }
+            if case .dynamicForwardMissingField = issue.kind { return true }
+            return false
+        }
+        if hasPortIssue { portForwardingExpanded = true }
+    }
+
     // MARK: - Save action
 
     private func performSave() {
@@ -409,7 +469,7 @@ private struct IdentityPill: View {
 
 /// A single-line inline banner for a validation issue. Hard blocks render in
 /// error red; soft blocks render in warning amber.
-private struct IssueBanner: View {
+struct IssueBanner: View {
     let message: String
     let severity: ValidationSeverity
     @Environment(\.theme) private var theme
