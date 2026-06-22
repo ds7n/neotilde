@@ -88,7 +88,10 @@ public final class KeychainSecretStore: SecretStore {
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         switch status {
         case errSecSuccess:
-            return result as? Data
+            guard let data = result as? Data else {
+                throw KeychainError.unexpectedStatus(errSecInternalError)
+            }
+            return data
         case errSecItemNotFound:
             return nil
         default:
