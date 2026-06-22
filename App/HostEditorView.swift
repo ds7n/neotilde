@@ -10,14 +10,18 @@ import GlymrKit
 /// later tasks. Validation spine is wired to `HostFormValidation` via
 /// `HostEditorViewModel`; soft-block issues render as non-blocking inline banners.
 struct HostEditorView: View {
-    @StateObject private var vm: HostEditorViewModel
+    // `vm`/`theme` are accessed from the section extensions in
+    // HostEditorView+Sections (a separate file), so they must be at least
+    // `internal` — Swift `private` is file-scoped and would not compile there.
+    @StateObject var vm: HostEditorViewModel
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.theme) private var theme
+    @Environment(\.theme) var theme
 
     /// Whether to show the discard-confirmation action sheet.
     @State private var showingDiscardConfirm = false
     /// Resolved defaults (loaded once on appear for hint labels).
-    @State private var defaults: Defaults = Defaults()
+    /// `internal` (not `private`): read by the section extensions in a separate file.
+    @State var defaults: Defaults = Defaults()
     /// Tracks whether the user has changed anything since the form opened.
     private let originalHost: Host
 
@@ -381,7 +385,8 @@ struct HostEditorView: View {
 
     // MARK: - Validation helpers
 
-    private func hasIssue(_ kind: ValidationIssue.Kind) -> Bool {
+    // `internal` (not `private`): called from the section extensions in a separate file.
+    func hasIssue(_ kind: ValidationIssue.Kind) -> Bool {
         vm.issues.contains { $0.kind == kind }
     }
 
