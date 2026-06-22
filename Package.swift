@@ -22,7 +22,12 @@ var products: [Product] = [.library(name: "GlymrKit", targets: ["GlymrKit"])]
 // The UniFFI XCFramework exists only on Apple platforms; never reference it on Linux.
 #if os(macOS)
 targets += [
-    .target(name: "GlymrSSHCoreFFI", dependencies: ["GlymrSSHCore"]),
+    .target(name: "GlymrSSHCoreFFI", dependencies: ["GlymrSSHCore"],
+            // The UniFFI-generated bindings aren't Swift 6 strict-concurrency
+            // clean (sending-closure diagnostics on the foreign-trait callbacks).
+            // It's vendored generated code we don't edit, so compile it in Swift 5
+            // language mode; GlymrKit and the app stay on Swift 6.
+            swiftSettings: [.swiftLanguageMode(.v5)]),
     .binaryTarget(name: "GlymrSSHCore", path: "GlymrSSHCore.xcframework"),
     .testTarget(name: "BridgeTests", dependencies: ["GlymrSSHCoreFFI"]),
 ]
