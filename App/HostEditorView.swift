@@ -51,6 +51,10 @@ struct HostEditorView: View {
     /// Whether the Glymr behavior section is expanded.
     @State var glymrExpanded = false
 
+    // Task 6 — identity picker state
+    /// Whether the inline identity picker half-sheet is presented.
+    @State private var showingIdentityPicker = false
+
     // Task 5 — delete flow state
     /// Whether the delete confirmation sheet is presented.
     @State var showingDeleteConfirm = false
@@ -117,6 +121,18 @@ struct HostEditorView: View {
             .onChange(of: vm.issues) { _, _ in
                 syncSectionAutoExpand()
             }
+        }
+        // Task 6 — inline identity picker half-sheet
+        .sheet(isPresented: $showingIdentityPicker) {
+            IdentityPickerSheet { identity in
+                var ids = vm.host.identities.value ?? []
+                if !ids.contains(identity.id) {
+                    ids.append(identity.id)
+                }
+                vm.host.identities = .explicit(ids)
+                vm.revalidate()
+            }
+            .presentationDetents([.medium, .large])
         }
         .confirmationDialog(
             "You have unsaved changes.",
@@ -336,7 +352,7 @@ struct HostEditorView: View {
 
             // Identity add button
             Button {
-                // TODO(Task 6): IdentityPickerSheet — open the inline identity picker
+                showingIdentityPicker = true
             } label: {
                 Label(
                     vm.host.identities.value?.isEmpty ?? true
@@ -525,15 +541,24 @@ struct HostEditorView: View {
 
 // MARK: - Identity pill
 
-/// A small rounded pill showing the identity's UUID (truncated). The display
-/// name lookup is deferred to Task 6 when the identity store is wired.
+/// A small rounded pill showing the identity's display name. Resolves the
+/// `IdentityRef` (UUID) against `allIdentities()` at render time; falls back
+/// to a truncated UUID if the identity is not found.
 private struct IdentityPill: View {
     let identityRef: IdentityRef
     @Environment(\.theme) private var theme
 
+    private var label: String {
+        let all = (try? AppStores.shared.hosts.allIdentities()) ?? []
+        if let identity = all.first(where: { $0.id == identityRef }) {
+            return identity.displayName
+        }
+        return String(identityRef.uuidString.prefix(8).lowercased())
+    }
+
     var body: some View {
-        Text(identityRef.uuidString.prefix(8).lowercased())
-            .font(.caption.monospaced())
+        Text(label)
+            .font(.caption)
             .foregroundStyle(Color(theme.text.primary))
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
