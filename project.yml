@@ -38,7 +38,9 @@ targets:
         CURRENT_PROJECT_VERSION: "1"
         MARKETING_VERSION: "0.1.0"
         TARGETED_DEVICE_FAMILY: "1,2"
-        SWIFT_VERSION: "6.0"
+        # MVP: Swift 5 language mode for the app target. The UniFFI callback
+        # bridges + SwiftTerm aren't Swift-6 strict-concurrency clean; tighten later.
+        SWIFT_VERSION: "5.0"
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         # No signing in CI; the simulator build is the gate.
         CODE_SIGNING_ALLOWED: NO
