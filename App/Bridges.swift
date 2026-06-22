@@ -20,8 +20,9 @@ final class TerminalShellOutput: ShellOutput {
     /// Set by the view model to learn the session ended (called on the main thread).
     var onExit: ((ShellExit) -> Void)?
 
-    func onOutput(data: [UInt8]) {
-        DispatchQueue.main.async { [weak self] in self?.onBytes?(data) }
+    func onOutput(data: Data) {
+        let bytes = [UInt8](data)   // UniFFI maps Rust Vec<u8> → Swift Data
+        DispatchQueue.main.async { [weak self] in self?.onBytes?(bytes) }
     }
 
     func onClosed(exit: ShellExit) {

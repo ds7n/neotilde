@@ -32,9 +32,9 @@ struct TerminalScreen: UIViewRepresentable {
 
         // Keystrokes / pasted bytes from the user → remote PTY.
         func send(source: TerminalView, data: ArraySlice<UInt8>) {
-            let bytes = Array(data)
+            let payload = Data(data)   // ShellSession.write takes Data (Rust Vec<u8>)
             let session = self.session
-            Task { try? await session.write(data: bytes) }
+            Task { try? await session.write(data: payload) }
         }
 
         // Grid resize (rotation, layout) → remote window-change.
