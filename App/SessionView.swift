@@ -24,13 +24,22 @@ struct SessionView: View {
     /// Set to true when the stored secret lookup failed to find a password,
     /// indicating the user must provide one manually.
     @State private var needsPasswordEntry = false
+    /// True while `resolveCredentials()` has not yet run (first `onAppear` not
+    /// yet fired). Guards against showing a misleading "Connecting to …" spinner
+    /// before we know whether a stored credential exists.
+    @State private var resolving = true
 
     var body: some View {
         Group {
             if case .shell = vm.state, let session = vm.session {
                 TerminalScreen(session: session, output: vm.output)
                     .ignoresSafeArea(.container, edges: .bottom)
-            } else if needsPasswordEntry && !credentialsResolved {
+            } else if resolving {
+                // Resolution not yet run — show a neutral spinner with no label
+                // so the "Connecting to <host>…" text never flashes before we
+                // know which path to take.
+                ProgressView()
+            } else if needsPasswordEntry {
                 passwordPrompt
             } else {
                 statusView
@@ -63,10 +72,13 @@ struct SessionView: View {
     /// If found, connects immediately. If not, shows the manual password prompt.
     private func resolveCredentials() {
         guard !credentialsResolved else { return }
+        defer { resolving = false }
         if let passwordID = host.passwordRef.value,
            let data = try? AppStores.shared.secrets.getSecret(.password(id: passwordID)) {
             let stored = String(decoding: data, as: UTF8.self)
             guard !stored.isEmpty else {
+                // Stored blob is empty — fall back to manual entry.
+                credentialsResolved = true
                 needsPasswordEntry = true
                 return
             }
@@ -75,6 +87,7 @@ struct SessionView: View {
             vm.connect(savedHost: host, password: stored)
         } else {
             // No stored secret — surface the password entry form.
+            credentialsResolved = true
             needsPasswordEntry = true
         }
     }
