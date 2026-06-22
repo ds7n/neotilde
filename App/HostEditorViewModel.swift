@@ -34,6 +34,10 @@ final class HostEditorViewModel: ObservableObject {
     /// `passwordText` and `host.passwordRef`.
     @Published var usePassword: Bool = false
 
+    /// Non-nil after a successful save when the store detected duplicate labels.
+    /// The view renders this as a soft warning before dismissing.
+    @Published var saveWarning: String? = nil
+
     // MARK: - Init
 
     /// Opens the editor for a brand-new host.
@@ -111,7 +115,15 @@ final class HostEditorViewModel: ObservableObject {
             throw EditorSaveError.hardBlocksPresent(hardBlocks)
         }
 
-        return try AppStores.shared.hosts.saveHost(host)
+        let outcome = try AppStores.shared.hosts.saveHost(host)
+
+        // Surface duplicate-label warning to the view if present.
+        if !outcome.duplicateLabels.isEmpty {
+            let dupeLabels = outcome.duplicateLabels.map(\.label).joined(separator: ", ")
+            saveWarning = "Saved. Another host already uses the label '\(host.label)': \(dupeLabels)."
+        }
+
+        return outcome
     }
 
     // MARK: - Helpers

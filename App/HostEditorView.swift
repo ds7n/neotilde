@@ -21,6 +21,16 @@ struct HostEditorView: View {
     /// Tracks whether the user has changed anything since the form opened.
     private let originalHost: Host
 
+    // Fix 2 — subtitle tracking state
+    /// True after the first successful save in this editing session.
+    @State private var savedOnce = false
+
+    // Fix 4 — touched tracking (gate required-field banners)
+    /// True once the user has interacted with the Label field.
+    @State private var labelTouched = false
+    /// True once the user has interacted with the Hostname field.
+    @State private var hostNameTouched = false
+
     // MARK: - Init
 
     init(creating: Bool) {
@@ -44,6 +54,13 @@ struct HostEditorView: View {
         vm.isNew ? "New host" : vm.host.label.isEmpty ? "Edit host" : vm.host.label
     }
 
+    // Fix 2 — subtitle derived from savedOnce + hasChanges
+    private var subtitle: String {
+        if !savedOnce { return "unsaved" }
+        if hasChanges { return "unsaved changes" }
+        return "up to date"
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -61,7 +78,8 @@ struct HostEditorView: View {
                     // TODO(Task 9): Delete host section (edit mode)
                 }
             }
-            .navigationTitle(title)
+            // Fix 2 — principal toolbar item replaces .navigationTitle for
+            // reliable iOS subtitle rendering (NavigationStack on iOS 16+).
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbarContent }
             .onAppear {
@@ -76,6 +94,23 @@ struct HostEditorView: View {
         ) {
             Button("Discard changes", role: .destructive) { dismiss() }
             Button("Keep editing", role: .cancel) {}
+        }
+        // Fix 1 — duplicate-label soft warning alert (save already succeeded)
+        .alert(
+            "Saved",
+            isPresented: Binding(
+                get: { vm.saveWarning != nil },
+                set: { if !$0 { vm.saveWarning = nil; dismiss() } }
+            )
+        ) {
+            Button("OK") {
+                vm.saveWarning = nil
+                dismiss()
+            }
+        } message: {
+            if let warning = vm.saveWarning {
+                Text(warning)
+            }
         }
     }
 
@@ -92,6 +127,17 @@ struct HostEditorView: View {
                 }
             }
         }
+        // Fix 2 — principal VStack title + subtitle (iOS-reliable approach)
+        ToolbarItem(placement: .principal) {
+            VStack(spacing: 2) {
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(Color(theme.text.primary))
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(Color(theme.text.secondary))
+            }
+        }
         ToolbarItem(placement: .navigationBarTrailing) {
             Button("Save") {
                 performSave()
@@ -101,7 +147,7 @@ struct HostEditorView: View {
             .foregroundStyle(
                 vm.canSave
                     ? Color(theme.accent.primary)
-                    : Color(theme.text.muted)
+                    : Color(theme.text.secondary)  // Fix 5 — was theme.text.muted
             )
         }
     }
@@ -115,7 +161,10 @@ struct HostEditorView: View {
                 TextField("e.g. prod-web", text: $vm.host.label)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
-                    .onChange(of: vm.host.label) { _, _ in vm.revalidate() }
+                    .onChange(of: vm.host.label) { _, _ in
+                        labelTouched = true  // Fix 4 — mark touched on first edit
+                        vm.revalidate()
+                    }
             } label: {
                 HStack(spacing: 2) {
                     Text("Label")
@@ -135,7 +184,10 @@ struct HostEditorView: View {
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
                     .keyboardType(.URL)
-                    .onChange(of: vm.host.hostName) { _, _ in vm.revalidate() }
+                    .onChange(of: vm.host.hostName) { _, _ in
+                        hostNameTouched = true  // Fix 4 — mark touched on first edit
+                        vm.revalidate()
+                    }
             } label: {
                 HStack(spacing: 2) {
                     Text("Hostname")
@@ -183,7 +235,8 @@ struct HostEditorView: View {
             }
 
             // Inline validation banners for Basics fields
-            if hasIssue(.missingLabel) {
+            // Fix 4 — gate required-field banners on touched state
+            if labelTouched && hasIssue(.missingLabel) {
                 IssueBanner(message: "Label is required to save.", severity: .hardBlock)
             }
             if let dupIssue = duplicateLabelIssue,
@@ -194,7 +247,8 @@ struct HostEditorView: View {
                     severity: .softBlock
                 )
             }
-            if hasIssue(.missingHostName) {
+            // Fix 4 — gate required-field banners on touched state
+            if hostNameTouched && hasIssue(.missingHostName) {
                 IssueBanner(message: "Hostname is required to save.", severity: .hardBlock)
             }
             if hasNoUserIssue {
@@ -298,16 +352,28 @@ struct HostEditorView: View {
     }
 
     private var portPlaceholder: String {
-        let defaultPort = defaults.port.value ?? 22
-        return "Defaults · \(defaultPort)"
+        // Fix 3 — only claim Defaults value when one is actually set
+        if let defaultPort = defaults.port.value {
+            return "Defaults · \(defaultPort)"
+        }
+        return "e.g. 22"
     }
 
     // MARK: - Save action
 
     private func performSave() {
         do {
-            _ = try vm.save()
-            dismiss()
+            let outcome = try vm.save()
+            // Fix 1 — if duplicateLabels is non-empty, saveWarning is set on vm;
+            // the .alert modifier above will present it before dismissing.
+            // If no warning, dismiss immediately.
+            if outcome.duplicateLabels.isEmpty {
+                savedOnce = true  // Fix 2 — mark as saved before dismissing
+                dismiss()
+            } else {
+                savedOnce = true  // Fix 2 — save succeeded even with dup warning
+                // vm.saveWarning is now set; the alert will dismiss after OK.
+            }
         } catch EditorSaveError.hardBlocksPresent {
             // Issues are already reflected in vm.issues; the view renders them.
             // The Save button is disabled when hard blocks exist, so this branch
