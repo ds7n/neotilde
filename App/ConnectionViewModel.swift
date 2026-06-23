@@ -159,8 +159,10 @@ final class ConnectionViewModel: ObservableObject {
         let done = AsyncStream<Void> { cont in
             sink.onExit = { _ in cont.yield(); cont.finish() }
         }
-        guard (try? await conn.openExec(command: "tmux -V", term: "xterm-256color",
-                                        cols: 80, rows: 24, output: sink)) != nil else { return nil }
+        let probeSession = try? await conn.openExec(command: "tmux -V", term: "xterm-256color",
+                                                    cols: 80, rows: 24, output: sink)
+        guard probeSession != nil else { return nil }
+        defer { if let probeSession { Task { try? await probeSession.close() } } }
         // Race the exec-channel close against a 2-second guard in case onExit
         // is never fired (e.g. some server implementations don't send channel EOF
         // on exec exit).
