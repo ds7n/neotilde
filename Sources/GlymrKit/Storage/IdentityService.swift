@@ -41,7 +41,10 @@ public enum IdentityServiceError: Error, Equatable {
 /// metadata → `HostStore`. The only place the two stores are written together,
 /// so the "private key in Keychain, metadata in records" invariant holds in one
 /// spot. Writes the secret first, then metadata; on a minter failure nothing is
-/// written (the throw happens before any store call).
+/// written (the throw happens before any store call). If the metadata save fails
+/// after the secret is written, the secret is rolled back so the two stores never
+/// diverge — a private key will never remain in the secret store without a
+/// corresponding identity record.
 public struct IdentityService {
     private let store: HostStore
     private let secrets: SecretStore
@@ -92,7 +95,13 @@ public struct IdentityService {
             algorithm: material.algorithm, publicKey: material.publicKeyOpenSSH,
             fingerprint: material.fingerprintSHA256, createdAt: now,
             biometricPolicy: biometricPolicy)
-        try store.saveIdentity(identity)
+        do {
+            try store.saveIdentity(identity)
+        } catch {
+            // Never leave an orphaned private key with no identity record.
+            try? secrets.deleteSecret(.privateKey(identityID: id))
+            throw error
+        }
         return identity
     }
 }
