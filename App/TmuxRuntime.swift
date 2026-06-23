@@ -17,8 +17,6 @@ final class TmuxRuntime {
 
     /// Bytes for the currently-active pane, ready to feed a terminal emulator.
     var onActivePaneBytes: (([UInt8]) -> Void)?
-    /// Fired once when the controller transitions to `.attached`.
-    var onAttached: (() -> Void)?
     /// Fired when control mode ends; carries the exit reason if any.
     var onExit: ((String?) -> Void)?
 
@@ -30,7 +28,6 @@ final class TmuxRuntime {
     /// Feed raw channel bytes from the control-mode exec.
     func ingest(_ bytes: [UInt8]) {
         let out = controller.feed(bytes)
-        if out.lifecycleChanged, case .attached = controller.lifecycle { onAttached?() }
         for chunk in out.paneOutput where chunk.pane == activePane {
             onActivePaneBytes?(chunk.data)
         }
@@ -46,7 +43,10 @@ final class TmuxRuntime {
         Task { try? await session.write(data: Data(sub.wire)) }
     }
 
-    /// The active pane of the active window (nil until the first layout arrives).
+    /// The active pane of the active window (nil until the first layout/window
+    /// event arrives). tmux emits those structural events on attach before any
+    /// `%output`, so real pane output is routed once the active pane is known;
+    /// a chunk arriving in the same feed batch before them would be dropped.
     private var activePane: PaneID? {
         guard let win = controller.state.activeWindow else { return nil }
         return controller.state.window(win)?.activePane
