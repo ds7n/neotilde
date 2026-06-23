@@ -55,9 +55,11 @@ final class ControlModeParserCapTests: XCTestCase {
         let capEvents = parser.feed(bodyLine)
         XCTAssertEqual(capEvents.count, 1,
                        "expected exactly one event when block body cap is exceeded, got \(capEvents)")
-        guard case .malformed = capEvents.first else {
+        guard case let .malformed(_, reason) = capEvents.first else {
             return XCTFail("expected .malformed when block body cap exceeded, got \(String(describing: capEvents.first))")
         }
+        XCTAssertTrue(reason.contains("block body exceeded"),
+                      "malformed reason should name the block-body cap, got \(reason)")
 
         // Resync: a valid notification after the forced close must parse normally.
         let resyncEvents = parser.feed(Array("%sessions-changed\n".utf8))
