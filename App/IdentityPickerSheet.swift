@@ -41,6 +41,7 @@ struct IdentityPickerSheet: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
                 .padding(.bottom, 8)
+                .onChange(of: selectedTab) { _, _ in errorText = nil }
 
                 // Tab content
                 switch selectedTab {
@@ -129,7 +130,7 @@ struct IdentityPickerSheet: View {
             Section { biometricPolicyPicker }
             Section {
                 Button("Import & Save") { importKey() }
-                    .disabled(importName.trimmingCharacters(in: .whitespaces).isEmpty || pastedKey.isEmpty)
+                    .disabled(importName.trimmingCharacters(in: .whitespaces).isEmpty || pastedKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             } footer: {
                 if let errorText { Text(errorText).foregroundStyle(.red) }
             }

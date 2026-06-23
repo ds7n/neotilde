@@ -3,6 +3,14 @@
 import GlymrKit
 import GlymrSSHCoreFFI
 
+/// Thrown when the Rust core returns an algorithm string GlymrKit's `KeyAlgorithm`
+/// doesn't model. Unreachable in practice (Rust rejects unsupported algorithms first);
+/// kept as a guard for future algorithm additions.
+private struct UnmodeledAlgorithm: Error, CustomStringConvertible {
+    let algorithm: String
+    var description: String { "unsupported algorithm: \(algorithm)" }
+}
+
 /// `IdentityMinter` backed by the Rust SSH core. Translates the UniFFI
 /// `KeyMaterial`/`KeyError` into GlymrKit's pure value types. Errors propagate
 /// as-is; `IdentityService` wraps them in `IdentityServiceError.minting`.
@@ -29,7 +37,7 @@ struct CoreIdentityMinter: IdentityMinter {
     /// added to `KeyAlgorithm` yet.
     private func map(_ m: GlymrSSHCoreFFI.KeyMaterial) throws -> GlymrKit.KeyMaterial {
         guard let alg = KeyAlgorithm(rawValue: m.algorithm) else {
-            throw IdentityServiceError.minting("unsupported algorithm: \(m.algorithm)")
+            throw UnmodeledAlgorithm(algorithm: m.algorithm)
         }
         return GlymrKit.KeyMaterial(
             privateKeyOpenSSH: m.privateKeyOpenssh,
