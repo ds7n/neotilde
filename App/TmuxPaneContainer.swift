@@ -17,6 +17,9 @@ struct TmuxPaneContainer: UIViewRepresentable {
     /// Active-pane keystrokes/paste bytes → remote.
     let send: ([UInt8]) -> Void
     let theme: Theme
+    /// Terminal rendering preferences (font, cursor, scrollback). Defaults from
+    /// `AppStores.shared.terminalSettings.settings` at the call site.
+    var settings: TerminalSettings = AppStores.shared.terminalSettings.settings
     /// Whether OSC 52 clipboard writes are allowed for this session (resolved at connect time).
     var osc52Allowed: Bool = true
     /// Called with the sanitized OSC 0/2 title; routes to `vm.terminalTitle`.
@@ -25,7 +28,7 @@ struct TmuxPaneContainer: UIViewRepresentable {
     var onTmuxResize: ((Int, Int) -> Void)? = nil
 
     func makeCoordinator() -> Coordinator {
-        let c = Coordinator(send: send, theme: theme, osc52Allowed: osc52Allowed, onTitle: onTitle)
+        let c = Coordinator(send: send, theme: theme, settings: settings, osc52Allowed: osc52Allowed, onTitle: onTitle)
         c.onTmuxResize = onTmuxResize
         return c
     }
@@ -68,7 +71,7 @@ struct TmuxPaneContainer: UIViewRepresentable {
         private var pinchRecognizers: [ObjectIdentifier: UIPinchGestureRecognizer] = [:]
         /// Baseline font size for pinch-zoom; shared across all panes in this window.
         /// Updated on `.ended`; persists for the window's lifetime only (not stored to host — v1.5+).
-        var baseFontSize: Double = TerminalSettings().fontSize
+        var baseFontSize: Double
         /// Called after a pinch font change to invalidate `ContainerView.cachedCell`.
         var onInvalidateCachedCell: (() -> Void)?
         /// Current bell halo color, refreshed from the theme in updateUIView.
@@ -90,9 +93,15 @@ struct TmuxPaneContainer: UIViewRepresentable {
         /// Routes debounced resize to the tmux client-size command.
         var onTmuxResize: ((Int, Int) -> Void)?
 
-        init(send: @escaping ([UInt8]) -> Void, theme: Theme,
+        /// Terminal rendering preferences; used to seed `baseFontSize` and apply font
+        /// to each pane `TerminalView` at creation time.
+        let settings: TerminalSettings
+
+        init(send: @escaping ([UInt8]) -> Void, theme: Theme, settings: TerminalSettings,
              osc52Allowed: Bool = true, onTitle: ((String) -> Void)? = nil) {
             self.send = send
+            self.settings = settings
+            self.baseFontSize = settings.fontSize
             self.bellHaloColor = UIColor(Color(theme.bell.edge))
             self.accentDotColor = UIColor(Color(theme.accent.primary.alpha(0.40)))
             self.osc52Allowed = osc52Allowed
@@ -322,6 +331,10 @@ struct TmuxPaneContainer: UIViewRepresentable {
                 let view = panes[rect.pane] ?? {
                     let t = TerminalView(frame: .zero)
                     t.terminalDelegate = coordinator
+                    // Apply configured font so rendered pane matches the pinch baseline.
+                    if let fontSize = coordinator?.settings.fontSize {
+                        t.font = UIFont.monospacedSystemFont(ofSize: CGFloat(fontSize), weight: .regular)
+                    }
                     addSubview(t); panes[rect.pane] = t; register(rect.pane, t)
                     coordinator?.installHalo(on: t)
                     return t

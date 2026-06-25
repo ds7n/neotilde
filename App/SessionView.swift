@@ -42,6 +42,7 @@ struct SessionView: View {
                             unregister: { vm.unregisterPane($0) },
                             send: { vm.sendTerminalInput($0) },
                             theme: theme,
+                            settings: AppStores.shared.terminalSettings.settings,
                             osc52Allowed: vm.osc52Allowed,
                             onTitle: { [weak vm] t in vm?.terminalTitle = t },
                             onTmuxResize: { [weak vm] cols, rows in vm?.setTmuxClientSize(cols: cols, rows: rows) })
