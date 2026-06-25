@@ -19,8 +19,10 @@ struct TerminalScreen: UIViewRepresentable {
     /// Terminal rendering preferences (font, cursor, scrollback). Defaults from
     /// `AppStores.shared.terminalSettings.settings` at the call site.
     var settings: TerminalSettings = TerminalSettings()
+    /// Active theme (used for bell halo color).
+    var theme: Theme = Theme.default
 
-    func makeCoordinator() -> Coordinator { Coordinator(send: send, session: session, settings: settings) }
+    func makeCoordinator() -> Coordinator { Coordinator(send: send, session: session, settings: settings, theme: theme) }
 
     func makeUIView(context: Context) -> TerminalView {
         let terminal = TerminalView(frame: .zero)
@@ -32,6 +34,12 @@ struct TerminalScreen: UIViewRepresentable {
         terminal.getTerminal().options.scrollback = s.scrollbackLines == Int.max ? Int.max : s.scrollbackLines
         applyCursor(to: terminal, style: s.cursorStyle, blink: s.cursorBlink)
 
+        // Install bell halo overlay (full-frame, non-interactive).
+        let halo = context.coordinator.halo
+        halo.frame = terminal.bounds
+        halo.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        terminal.addSubview(halo)
+
         // Render PTY output as it arrives (already hopped to main in the bridge).
         output.onBytes = { [weak terminal] bytes in
             terminal?.feed(byteArray: bytes[...])
@@ -39,18 +47,27 @@ struct TerminalScreen: UIViewRepresentable {
         return terminal
     }
 
-    func updateUIView(_ uiView: TerminalView, context: Context) {}
+    func updateUIView(_ uiView: TerminalView, context: Context) {
+        // Refresh halo color when theme changes.
+        context.coordinator.halo.configure(color: UIColor(Color(theme.bell.edge)))
+    }
 
     /// Bridges SwiftTerm's delegate callbacks to the SSH session.
     final class Coordinator: NSObject, TerminalViewDelegate {
         private let onSend: ([UInt8]) -> Void
         private let session: ShellSession?
         let settings: TerminalSettings
+        /// Bell halo overlay installed into the TerminalView in makeUIView.
+        let halo: BellHaloView
+        private var bellMachine: BellStateMachine = BellStateMachine()
 
-        init(send: @escaping ([UInt8]) -> Void, session: ShellSession?, settings: TerminalSettings) {
+        init(send: @escaping ([UInt8]) -> Void, session: ShellSession?, settings: TerminalSettings, theme: Theme) {
             self.onSend = send
             self.session = session
             self.settings = settings
+            self.halo = BellHaloView(frame: .zero)
+            super.init()
+            halo.configure(color: UIColor(Color(theme.bell.edge)))
         }
 
         // Keystrokes / pasted bytes from the user → remote (tmux or raw PTY).
@@ -64,13 +81,21 @@ struct TerminalScreen: UIViewRepresentable {
             Task { try? await session?.resize(cols: UInt32(newCols), rows: UInt32(newRows)) }
         }
 
+        // Visual bell: pulse halo + optional haptic (throttled by BellStateMachine).
+        func bell(source: TerminalView) {
+            let haptic = bellMachine.ring(at: Date())
+            halo.start(machine: bellMachine)
+            if haptic {
+                UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+            }
+        }
+
         // Unused delegate methods (required by the protocol).
         func scrolled(source: TerminalView, position: Double) {}
         func setTerminalTitle(source: TerminalView, title: String) {}
         func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}
         func clipboardCopy(source: TerminalView, content: Data) {}
         func requestOpenLink(source: TerminalView, link: String, params: [String: String]) {}
-        func bell(source: TerminalView) {}
         func rangeChanged(source: TerminalView, startY: Int, endY: Int) {}
     }
 }

@@ -18,7 +18,7 @@ struct TmuxPaneContainer: UIViewRepresentable {
     let send: ([UInt8]) -> Void
     let theme: Theme
 
-    func makeCoordinator() -> Coordinator { Coordinator(send: send) }
+    func makeCoordinator() -> Coordinator { Coordinator(send: send, theme: theme) }
 
     func makeUIView(context: Context) -> ContainerView {
         let v = ContainerView()
@@ -30,12 +30,52 @@ struct TmuxPaneContainer: UIViewRepresentable {
         uiView.apply(state: state, register: register, unregister: unregister,
                      activeBorderColor: UIColor(Color(theme.focus.paneBorder)),
                      inactiveBorderColor: UIColor(Color(theme.focus.paneBorderInactive)))
+        // Refresh halo color on theme changes.
+        context.coordinator.bellHaloColor = UIColor(Color(theme.bell.edge))
     }
 
     /// Bridges SwiftTerm input from whichever pane is active to the VM.
     final class Coordinator: NSObject, TerminalViewDelegate {
         private let send: ([UInt8]) -> Void
-        init(send: @escaping ([UInt8]) -> Void) { self.send = send }
+        /// Per-pane bell state machines keyed by the TerminalView identity.
+        /// Using ObjectIdentifier allows weak-ref-free keying without PaneID exposure here.
+        private var bellMachines: [ObjectIdentifier: BellStateMachine] = [:]
+        /// Per-pane halo views (installed as subviews on each TerminalView).
+        private var haloViews: [ObjectIdentifier: BellHaloView] = [:]
+        /// Current bell halo color, refreshed from the theme in updateUIView.
+        var bellHaloColor: UIColor {
+            didSet { haloViews.values.forEach { $0.configure(color: bellHaloColor) } }
+        }
+
+        init(send: @escaping ([UInt8]) -> Void, theme: Theme) {
+            self.send = send
+            self.bellHaloColor = UIColor(Color(theme.bell.edge))
+        }
+
+        // MARK: - Halo lifecycle
+
+        /// Called from ContainerView when a TerminalView is first created.
+        func installHalo(on view: TerminalView) {
+            let key = ObjectIdentifier(view)
+            guard haloViews[key] == nil else { return }
+            let halo = BellHaloView(frame: view.bounds)
+            halo.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            halo.configure(color: bellHaloColor)
+            view.addSubview(halo)
+            haloViews[key] = halo
+            bellMachines[key] = BellStateMachine()
+        }
+
+        /// Called from ContainerView when a TerminalView is removed.
+        func removeHalo(from view: TerminalView) {
+            let key = ObjectIdentifier(view)
+            haloViews[key]?.removeFromSuperview()
+            haloViews[key] = nil
+            bellMachines[key] = nil
+        }
+
+        // MARK: - TerminalViewDelegate
+
         func send(source: TerminalView, data: ArraySlice<UInt8>) { send(Array(data)) }
         func sizeChanged(source: TerminalView, newCols: Int, newRows: Int) {}  // tmux owns geometry
         func scrolled(source: TerminalView, position: Double) {}
@@ -43,8 +83,21 @@ struct TmuxPaneContainer: UIViewRepresentable {
         func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}
         func clipboardCopy(source: TerminalView, content: Data) {}
         func requestOpenLink(source: TerminalView, link: String, params: [String: String]) {}
-        func bell(source: TerminalView) {}
         func rangeChanged(source: TerminalView, startY: Int, endY: Int) {}
+
+        /// Visual bell: pulse halo on the ringing pane + optional haptic (throttled).
+        func bell(source: TerminalView) {
+            let key = ObjectIdentifier(source)
+            var machine = bellMachines[key] ?? BellStateMachine()
+            let haptic = machine.ring(at: Date())
+            bellMachines[key] = machine
+            if let halo = haloViews[key] {
+                halo.start(machine: machine)
+            }
+            if haptic {
+                UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+            }
+        }
     }
 
     /// UIKit container that lays out one `TerminalView` per pane and tracks the set.
@@ -93,6 +146,7 @@ struct TmuxPaneContainer: UIViewRepresentable {
             // Remove panes tmux no longer reports; resign first-responder before removal.
             for (id, view) in panes where !live.contains(id) {
                 view.resignFirstResponder()
+                coordinator?.removeHalo(from: view)
                 view.removeFromSuperview(); unregister(id); panes[id] = nil
             }
 
@@ -102,6 +156,7 @@ struct TmuxPaneContainer: UIViewRepresentable {
                     let t = TerminalView(frame: .zero)
                     t.terminalDelegate = coordinator
                     addSubview(t); panes[rect.pane] = t; register(rect.pane, t)
+                    coordinator?.installHalo(on: t)
                     return t
                 }()
                 view.frame = CGRect(x: rect.x, y: rect.y, width: rect.width, height: rect.height)
