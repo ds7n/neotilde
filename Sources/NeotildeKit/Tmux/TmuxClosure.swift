@@ -1,6 +1,5 @@
 // SPDX-FileCopyrightText: 2026 True Positive LLC
 // SPDX-License-Identifier: GPL-3.0-only
-import Foundation
 
 /// How a `tmux -CC` control-mode channel ended (degraded-mode spec §"Mid-session
 /// tmux crash recovery").

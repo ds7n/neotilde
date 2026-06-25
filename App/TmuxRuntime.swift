@@ -95,7 +95,6 @@ final class TmuxRuntime {
     }
 
     /// Submit a command and return its correlation id (nil unless attached).
-    @discardableResult
     private func writeTracked(_ line: String) -> UInt64? {
         guard let sub = controller.submit(line), let writer else { return nil }
         writer.enqueue(sub.wire)

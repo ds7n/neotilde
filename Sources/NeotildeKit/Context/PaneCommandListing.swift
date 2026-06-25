@@ -1,6 +1,5 @@
 // SPDX-FileCopyrightText: 2026 True Positive LLC
 // SPDX-License-Identifier: GPL-3.0-only
-import Foundation
 
 /// Parse the result lines of `TmuxCommand.listPaneCommands()` — each
 /// `%<id> <pane_current_command>` — into `(PaneID, command)` pairs. Lines with no
