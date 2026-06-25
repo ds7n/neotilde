@@ -26,6 +26,6 @@ final class PromotionCatalogTests: XCTestCase {
     func testMalformedJSONFallsBackToBundledWithWarning() {
         let (reg, warning) = PromotionCatalog.load(userOverrideJSON: Data("{ not json".utf8))
         XCTAssertEqual(reg, PromotionRegistry.bundledDefault)   // never crash; full fallback
-        XCTAssertNotNil(warning)                                // one-time inline warning surfaced
+        XCTAssertEqual(warning, "Keybar promotion override file is invalid — using defaults.")
     }
 }

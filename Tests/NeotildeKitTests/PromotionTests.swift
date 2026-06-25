@@ -14,6 +14,7 @@ final class PromotionTests: XCTestCase {
         // htop/top/mc are Fn-spec, NOT symbol promotions.
         XCTAssertNil(reg.set(for: "htop"))
         XCTAssertNil(reg.set(for: "top"))
+        XCTAssertNil(reg.set(for: "mc"))
     }
 
     func testBundledVimSlotsMatchSpec() {
