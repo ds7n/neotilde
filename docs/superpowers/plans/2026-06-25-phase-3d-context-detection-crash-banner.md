@@ -67,7 +67,7 @@ git checkout -b feat/phase-3d-context-crash
 
 ## Part A — Context Detection
 
-### Task A1: Promotion model + catalog
+### Task 1: Promotion model + catalog
 
 **Files:**
 - Create: `Sources/NeotildeKit/Context/Promotion.swift`
@@ -279,7 +279,7 @@ git commit -m "feat(context): promotion-set model + bundled catalog with user-ov
 
 ---
 
-### Task A2: Per-pane context state machine
+### Task 2: Per-pane context state machine
 
 **Files:**
 - Create: `Sources/NeotildeKit/Context/PaneContextMachine.swift`
@@ -469,7 +469,7 @@ git commit -m "feat(context): per-pane dwell state machine (250ms engage / 1500m
 
 ---
 
-### Task A3: Multi-pane context store
+### Task 3: Multi-pane context store
 
 **Files:**
 - Create: `Sources/NeotildeKit/Context/PaneContextStore.swift`
@@ -585,7 +585,7 @@ git commit -m "feat(context): multi-pane context store with snapshot apply + pru
 
 ---
 
-### Task A4: `list-panes` encoder + listing parser
+### Task 4: `list-panes` encoder + listing parser
 
 **Files:**
 - Modify: `Sources/NeotildeKit/Tmux/TmuxCommand.swift` (add `listPaneCommands()`)
@@ -699,7 +699,7 @@ git commit -m "feat(context): list-panes command encoder + pane_current_command 
 
 ---
 
-### Task A5: App wiring — poll the signal + publish the observable
+### Task 5: App wiring — poll the signal + publish the observable
 
 **Files:**
 - Modify: `App/TmuxRuntime.swift`
@@ -832,7 +832,7 @@ Expected: `macos` job green. (`linux-rust` flaking on "sshd fixtures not reachab
 
 ## Part B — Mid-Session Crash Banner
 
-### Task B1: Closure classification (pure)
+### Task 6: Closure classification (pure)
 
 **Files:**
 - Create: `Sources/NeotildeKit/Tmux/TmuxClosure.swift`
@@ -920,7 +920,7 @@ git commit -m "feat(tmux): classify -CC channel closure as clean exit vs crash"
 
 ---
 
-### Task B2: Crash banner UI + recovery wiring
+### Task 7: Crash banner UI + recovery wiring
 
 **Files:**
 - Create: `App/CrashBanner.swift`
@@ -1107,6 +1107,6 @@ Expected: all existing tests + the new context/closure suites pass.
 
 ## Self-Review notes
 
-- **Spec coverage (context-detection):** per-pane SM + asymmetric dwell → A2; `pane_current_command` signal (polling fallback, spec-permitted) → A4/A5; bundled v1 list §11 + user-override-wins + malformed-fallback → A1; `PaneState.currentContext` observable → A3/A5; unknown-process silent fallback → A2 (`testUnknownProcessNeverEngages`); pane-focus immediate read → A3 `context(for:)`. **Out of scope (Phase 4):** keybar promoted-slot visual, engage/disengage animation, per-pane pin, global kill-switch — all keybar-UI, none committed by Plan D. The signal source choice is **polling** (works on tmux 3.0+; control-mode subscriptions are 3.2+; spec §"Acquisition" permits either).
-- **Spec coverage (degraded-mode crash):** EOF-vs-`%exit` detection → B1; auto-drop to raw shell on same connection, no re-auth → B2 `recoverFromTmuxCrash`; persistent red banner with Reattach / Start-new / Dismiss → B2; no auto-retry / no layout restoration / no false reassurance → honored (manual actions only, fresh raw shell, honest copy).
+- **Spec coverage (context-detection):** per-pane SM + asymmetric dwell → Task 2; `pane_current_command` signal (polling fallback, spec-permitted) → Task 4/A5; bundled v1 list §11 + user-override-wins + malformed-fallback → Task 1; `PaneState.currentContext` observable → Task 3/A5; unknown-process silent fallback → Task 2 (`testUnknownProcessNeverEngages`); pane-focus immediate read → Task 3 `context(for:)`. **Out of scope (Phase 4):** keybar promoted-slot visual, engage/disengage animation, per-pane pin, global kill-switch — all keybar-UI, none committed by Plan D. The signal source choice is **polling** (works on tmux 3.0+; control-mode subscriptions are 3.2+; spec §"Acquisition" permits either).
+- **Spec coverage (degraded-mode crash):** EOF-vs-`%exit` detection → Task 6; auto-drop to raw shell on same connection, no re-auth → Task 7 `recoverFromTmuxCrash`; persistent red banner with Reattach / Start-new / Dismiss → Task 7; no auto-retry / no layout restoration / no false reassurance → honored (manual actions only, fresh raw shell, honest copy).
 - **Known v1 limitation:** Reattach and Start-new both use `-CC new-session -A`, so they converge if the server-side session survived. Distinct fresh-session naming is a deliberate follow-up, not a gap (crashes are rare; the spec offers both but our `-A` attach-or-create collapses them).
