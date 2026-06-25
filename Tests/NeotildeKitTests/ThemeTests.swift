@@ -21,7 +21,7 @@ final class ThemeTests: XCTestCase {
     func testRegistryHasNeonMidnightDefaultThenBellBronze() {
         XCTAssertEqual(Theme.all.count, 2)
         XCTAssertEqual(Theme.all.first, Theme.neonMidnight)   // default is first
-        XCTAssertTrue(Theme.all.contains(Theme.bellBronze))   // bronze retained
+        XCTAssertEqual(Theme.all.last, Theme.bellBronze)   // bronze retained, second
     }
 
     func testNeonMidnightAccentIsCoral() {
