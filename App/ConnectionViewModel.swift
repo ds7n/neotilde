@@ -38,6 +38,10 @@ final class ConnectionViewModel: ObservableObject {
     @Published private(set) var paneContexts: [PaneID: String] = [:]
     /// Bundled promotion sets (user override is a 4d concern).
     private let promotionRegistry = PromotionRegistry.bundledDefault
+    /// Fn-layer state for the active pane. Published so the keybar re-renders the
+    /// Fn slot and the F-key layer.
+    @Published private(set) var fnState = FnState()
+    private let autoFnProcesses = AutoFnCatalog.bundled
 
     /// The active pane's promotion set (empty when its context is unknown or
     /// there is no active pane). Drives the keybar's bronze promotion slots.
@@ -101,6 +105,11 @@ final class ConnectionViewModel: ObservableObject {
     }
 
     // MARK: - Input routing
+
+    func fnTap()       { fnState.tap() }
+    func fnDoubleTap() { fnState.doubleTap() }
+    /// Send an F-key and clear a one-shot Fn arm.
+    func fnTapFKey(_ n: Int) { keybar.tapFKey(n); fnState.fireFKey() }
 
     /// Route terminal keystrokes: through tmux `send-keys` when control mode is
     /// attached, else straight to the raw-PTY channel.
@@ -169,6 +178,7 @@ final class ConnectionViewModel: ObservableObject {
         tmux?.stop()
         tmux = nil
         paneContexts = [:]
+        fnState.reset()
         rawWriter?.finish()
         rawWriter = nil
         session = nil
@@ -261,6 +271,20 @@ final class ConnectionViewModel: ObservableObject {
         state = .shell
     }
 
+    /// Reconcile Fn auto-engage with the active pane's foreground process.
+    private func refreshFnAutoEngage() {
+        let process: String? = {
+            guard let win = tmuxState?.activeWindow,
+                  let pane = tmuxState?.window(win)?.activePane else { return nil }
+            return paneContexts[pane]
+        }()
+        if let process, autoFnProcesses.contains(process) {
+            fnState.autoEngage()
+        } else {
+            fnState.autoDisengage()
+        }
+    }
+
     /// Attach tmux control mode: open the `-CC` exec, pump its bytes into a
     /// `TmuxRuntime`, and route the active pane's output into the terminal view.
     private func attachTmux(conn: Connection) async throws {
@@ -288,6 +312,7 @@ final class ConnectionViewModel: ObservableObject {
             self.renderablePanes = live
             self.pendingPaneBytes = self.pendingPaneBytes.filter { live.contains($0.key) }
             self.tmuxState = state
+            self.refreshFnAutoEngage()
         }
         runtime.onContextsChanged = { [weak self, weak runtime] in
             guard let self, let runtime else { return }
@@ -296,6 +321,7 @@ final class ConnectionViewModel: ObservableObject {
                 if let ctx = runtime.paneContext(pane) { map[pane] = ctx }
             }
             self.paneContexts = map
+            self.refreshFnAutoEngage()
         }
         runtime.onExit = { [weak self] reason in self?.state = .failed(reason ?? "tmux session ended") }
         let sink = TerminalShellOutput()
