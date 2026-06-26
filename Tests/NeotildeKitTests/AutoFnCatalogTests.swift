@@ -31,6 +31,6 @@ final class AutoFnCatalogTests: XCTestCase {
     func testMalformedOverrideFallsBackWithWarning() {
         let (procs, warning) = AutoFnCatalog.load(userOverrideJSON: Data("{ bad".utf8))
         XCTAssertEqual(procs, AutoFnCatalog.bundled)
-        XCTAssertNotNil(warning)
+        XCTAssertEqual(warning, "Auto-Fn override file is invalid — using defaults.")
     }
 }
