@@ -43,10 +43,11 @@ struct TabSlotView: View {
 
 /// Modifier slot: tap=arm Ctrl, double-tap=lock Ctrl, swipe-up=Alt, swipe-down=Shift.
 struct ModifierSlotView: View {
+    let ctrl: CtrlState
     let vm: ConnectionViewModel
     @Environment(\.theme) private var theme
     private var bg: Color {
-        switch vm.keybar.modifiers.ctrl {
+        switch ctrl {
         case .locked: return Color(theme.keybar.slotBgLocked)
         case .armed:  return Color(theme.keybar.slotBgArmed)
         case .off:    return Color(theme.keybar.slotBg)

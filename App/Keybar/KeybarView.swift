@@ -33,7 +33,7 @@ struct KeybarView: View {
         switch slot {
         case .escPill:        EscPillView(vm: vm)
         case .pad:            PadView(vm: vm)
-        case .modifier:       ModifierSlotView(vm: vm)
+        case .modifier:       ModifierSlotView(ctrl: vm.keybar.modifiers.ctrl, vm: vm)
         case .tab:            TabSlotView(vm: vm)
         case .symbol(let s):  SymbolSlotView(symbol: s, vm: vm)
         }
