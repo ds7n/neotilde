@@ -57,7 +57,7 @@ struct SessionView: View {
                             theme: theme,
                             settings: AppStores.shared.terminalSettings.settings,
                             osc52Allowed: vm.osc52Allowed,
-                            onTitle: { [weak vm] t in vm?.terminalTitle = t },
+                            onTitle: { [weak vm] view, t in vm?.setTmuxTitle(from: view, t) },
                             onTmuxResize: { [weak vm] cols, rows in vm?.setTmuxClientSize(cols: cols, rows: rows) },
                             onSSHLink: { [weak vm] url in vm?.presentSSHLink(url) })
                         // Client size is reported by the pane container's layout pass

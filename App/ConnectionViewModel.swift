@@ -84,6 +84,9 @@ final class ConnectionViewModel: ObservableObject {
     @Published var crashBanner: CrashBannerState?
     /// PaneID → live SwiftTerm view, populated by TmuxPaneContainer as panes appear.
     private var paneViews: [PaneID: TerminalView] = [:]
+    /// PaneID → its last-seen OSC 0/2 title, so the window title can follow the active
+    /// pane across switches rather than being clobbered by whichever pane emits last.
+    private var paneLastTitles: [PaneID: String] = [:]
     private var pendingPaneBytes: [PaneID: [UInt8]] = [:]   // bytes that arrived before the view registered
     /// Panes that currently exist in the active window's visible layout.
     /// Bytes for panes NOT in this set are dropped rather than buffered (bounds memory).
@@ -172,7 +175,19 @@ final class ConnectionViewModel: ObservableObject {
         }
     }
 
-    func unregisterPane(_ pane: PaneID) { paneViews[pane] = nil; pendingPaneBytes[pane] = nil }
+    func unregisterPane(_ pane: PaneID) { paneViews[pane] = nil; pendingPaneBytes[pane] = nil; paneLastTitles[pane] = nil }
+
+    /// Publish an OSC 0/2 title from a tmux pane, keyed to the active pane: cache it
+    /// per-pane and only surface the *active* pane's title so a background pane can't
+    /// clobber what the user is looking at (`titleToPublish`).
+    func setTmuxTitle(from view: TerminalView, _ title: String) {
+        guard let pane = paneViews.first(where: { $0.value === view })?.key else { return }
+        paneLastTitles[pane] = title
+        let active = tmuxState?.activeWindow.flatMap { tmuxState?.window($0)?.activePane }
+        if let published = titleToPublish(source: pane, active: active, title: title) {
+            terminalTitle = published
+        }
+    }
 
     func selectWindow(_ id: WindowID) { tmux?.selectWindow(id) }
 
@@ -427,7 +442,14 @@ final class ConnectionViewModel: ObservableObject {
             )
             self.renderablePanes = live
             self.pendingPaneBytes = self.pendingPaneBytes.filter { live.contains($0.key) }
+            let oldActive = self.tmuxState?.activeWindow.flatMap { self.tmuxState?.window($0)?.activePane }
             self.tmuxState = state
+            let newActive = state.activeWindow.flatMap { state.window($0)?.activePane }
+            if oldActive != newActive {
+                // Active pane changed (e.g. ⌘]) — re-publish the new active pane's
+                // last-known title so the window title isn't left stale.
+                self.terminalTitle = titleOnActiveChange(active: newActive, lastTitles: self.paneLastTitles)
+            }
             self.refreshFnAutoEngage()
         }
         runtime.onContextsChanged = { [weak self, weak runtime] in
