@@ -19,9 +19,37 @@ public struct MacroPlaceholder: Equatable, Sendable, Codable {
 
 /// One element of a parameterized macro body: either a literal keystroke or a
 /// placeholder to be resolved at fire-time. A plain recorded macro is all `.event`s;
-/// a template macro may interleave `.placeholder`s. (Codable is added in the Macro
-/// integration slice, alongside the legacy `[MacroEvent]` back-compat decode.)
+/// a template macro may interleave `.placeholder`s.
 public enum MacroBodyElement: Equatable, Sendable {
     case event(MacroEvent)
     case placeholder(MacroPlaceholder)
+}
+
+extension MacroBodyElement: Codable {
+    private enum CodingKeys: String, CodingKey { case kind, event, placeholder }
+
+    /// `kind` discriminator + the payload, mirroring `KeyInput`'s wire form so later
+    /// element kinds can be added without disturbing persisted macros.
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .event(let e):
+            try c.encode("event", forKey: .kind)
+            try c.encode(e, forKey: .event)
+        case .placeholder(let p):
+            try c.encode("placeholder", forKey: .kind)
+            try c.encode(p, forKey: .placeholder)
+        }
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        switch try c.decode(String.self, forKey: .kind) {
+        case "event":       self = .event(try c.decode(MacroEvent.self, forKey: .event))
+        case "placeholder": self = .placeholder(try c.decode(MacroPlaceholder.self, forKey: .placeholder))
+        case let k:
+            throw DecodingError.dataCorruptedError(
+                forKey: .kind, in: c, debugDescription: "unknown macro body element kind '\(k)'")
+        }
+    }
 }
