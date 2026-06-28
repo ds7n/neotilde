@@ -80,5 +80,5 @@ Notes:
 
 - Final mockup: `mockups/drafts/2026-06-25-theme-neon-midnight-final.html` (+ exploration drafts `2026-06-25-theme-*.html`).
 - Token structure: `Sources/SemicolynKit/Theme/Theme.swift`; current palette `BellBronzeTheme.swift`.
-- Story/rename context: `docs/2026-06-24-naming-decision-semicolyn.md`, memory [[naming-and-trademark]].
+- Story/rename context: `docs/2026-06-28-naming-decision-semicolyn.md`, memory [[naming-and-trademark]].
 - Bell halo (the glow primitive): Phase 3c, `App/BellHaloView.swift`.

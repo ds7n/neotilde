@@ -19,7 +19,7 @@ Two complementary input mechanisms central to the differentiation:
 
 | Topic | Decision |
 |---|---|
-| Name | **semicolyn** — *neo* + *tilde* (`~`, the shell's home directory and the key every terminal user reaches for). "The modern terminal." Lowercase `semicolyn` in path / code contexts; capitalized `Semicolyn` only as the proper noun at sentence start. (Renamed from "Glymr" 2026-06-24 — the old name collided with a LIVE registered GLYMR trademark; see `docs/2026-06-24-naming-decision-semicolyn.md`.) |
+| Name | **semicolyn** — a respell of *semicolon* (`;`, the shell's command separator that chains one command into the next). Lowercase `semicolyn` in path / code contexts; capitalized `Semicolyn` only as the proper noun at sentence start. (Naming journey: Glymr → neotilde (2026-06-24, forced off the LIVE registered GLYMR trademark) → **semicolyn** (2026-06-28); see `docs/2026-06-28-naming-decision-semicolyn.md`.) |
 | Goal | Solve a personal annoyance (CLI / AI / security adjacent) |
 | Differentiator | Make the iOS keyboard pleasant for terminal work |
 | Security posture | Security-first: SE-default for new identities, per-host auth policy, no telemetry, public-key always copyable. (Audit log dropped from v1 entirely per `2026-06-16-icloud-sync-scope-design.md`; code-level stub reserved for a future Pro compliance feature.) |

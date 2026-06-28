@@ -10,8 +10,9 @@ snippet launcher, tmux control mode driving persistent native tabs and panes,
 an on-device predictor that learns your vocabulary, and security-first
 credential handling with end-to-end-encrypted sync.
 
-> The name **semicolyn** is *neo* + *tilde* — the shell's home `~`, made new. It's
-> the symbol every terminal user types to go home, reimagined for touch.
+> The name **semicolyn** is a respell of *semicolon* — the `;` that chains one
+> shell command into the next. The everyday punctuation of the command line,
+> reimagined for touch.
 
 **Status:** design complete; a connect-and-get-a-shell MVP builds for the iOS
 Simulator (not yet device-installable — needs Apple Developer signing). The
