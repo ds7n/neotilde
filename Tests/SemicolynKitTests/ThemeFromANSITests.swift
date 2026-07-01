@@ -54,6 +54,7 @@ final class ThemeFromANSITests: XCTestCase {
         XCTAssertEqual(t.state.success, ThemeColor("#5FB0A2")) // green slot
         XCTAssertEqual(t.state.broken, ThemeColor("#E5455E"))  // red slot
         XCTAssertEqual(t.state.warning, ThemeColor("#F5A524")) // yellow slot
+        XCTAssertEqual(t.state.degraded, ThemeColor("#F5A524")) // yellow slot
     }
 
     func testAccentAndBrokenAreDistinct() {
