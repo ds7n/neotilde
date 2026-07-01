@@ -98,4 +98,14 @@ final class ThemeTests: XCTestCase {
     func testNeonMidnightTerminalCursorIsAccent() {
         XCTAssertEqual(Theme.neonMidnight.terminal.cursor, ThemeColor("#FF6F5E"))
     }
+
+    func testBellBronzeAnsiYellowIsBronze() {
+        // Bronze is the theme's warm hue → occupies the yellow slot; accent refs it.
+        XCTAssertEqual(Theme.bellBronze.ansi[.yellow], ThemeColor("#D49A5C"))
+        XCTAssertEqual(Theme.bellBronze.accent.primary, ThemeColor("#D49A5C"))
+    }
+
+    func testBellBronzeAnsiHasSixteen() {
+        XCTAssertEqual(Theme.bellBronze.ansi.ordered().count, 16)
+    }
 }
